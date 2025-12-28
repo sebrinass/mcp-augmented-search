@@ -3,12 +3,12 @@
     "version": "0.8.0",
     "description": "MCP server for SearXNG integration",
     "license": "MIT",
-    "author": "Ihor Sokoliuk (https://github.com/ihor-sokoliuk)",
-    "homepage": "https://github.com/ihor-sokoliuk/mcp-searxng",
-    "bugs": "https://github.com/ihor-sokoliuk/mcp-searxng/issues",
+    "author": "sebrinass (https://github.com/sebrinass)",
+    "homepage": "https://github.com/sebrinass/mcp-searxng",
+    "bugs": "https://github.com/sebrinass/mcp-searxng/issues",
     "repository": {
         "type": "git",
-        "url": "https://github.com/ihor-sokoliuk/mcp-searxng"
+        "url": "https://github.com/sebrinass/mcp-searxng"
     },
     "keywords": [
         "mcp",
