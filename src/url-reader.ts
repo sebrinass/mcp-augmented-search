@@ -1,5 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { NodeHtmlMarkdown } from "node-html-markdown";
+import { Readability } from "@mozilla/readability";
+import { JSDOM } from "jsdom";
 import { createProxyAgent } from "./proxy.js";
 import { logMessage } from "./logging.js";
 import { urlCache } from "./cache.js";
@@ -279,14 +281,33 @@ export async function fetchAndConvertToMarkdown(
       throw createContentError("Website returned empty content.", resolvedUrl);
     }
 
+    // Extract main content using Readability
+    let extractedHtmlContent: string;
+    try {
+      const dom = new JSDOM(htmlContent);
+      const reader = new Readability(dom.window.document);
+      const article = reader.parse();
+      
+      if (article && article.content) {
+        extractedHtmlContent = article.content;
+        logMessage(server, "info", `Successfully extracted main content from: ${resolvedUrl}`);
+      } else {
+        logMessage(server, "warning", `Readability failed to extract content from: ${resolvedUrl}, using full HTML`);
+        extractedHtmlContent = htmlContent;
+      }
+    } catch (error: any) {
+      logMessage(server, "warning", `Readability extraction failed: ${error.message}, using full HTML`);
+      extractedHtmlContent = htmlContent;
+    }
+
     // Convert HTML to Markdown
     let markdownContent: string;
     try {
-      markdownContent = NodeHtmlMarkdown.translate(htmlContent);
+      markdownContent = NodeHtmlMarkdown.translate(extractedHtmlContent);
     } catch (error: any) {
       logMessage(server, "warning", `Failed to convert HTML to Markdown, returning raw HTML: ${error.message}`);
       // Return raw HTML as fallback
-      markdownContent = htmlContent;
+      markdownContent = extractedHtmlContent;
     }
 
     if (!markdownContent || markdownContent.trim().length === 0) {
