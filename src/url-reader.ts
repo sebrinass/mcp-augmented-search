@@ -284,7 +284,9 @@ export async function fetchAndConvertToMarkdown(
     try {
       markdownContent = NodeHtmlMarkdown.translate(htmlContent);
     } catch (error: any) {
-      throw createConversionError(error, resolvedUrl, htmlContent);
+      logMessage(server, "warning", `Failed to convert HTML to Markdown, returning raw HTML: ${error.message}`);
+      // Return raw HTML as fallback
+      markdownContent = htmlContent;
     }
 
     if (!markdownContent || markdownContent.trim().length === 0) {
@@ -310,7 +312,16 @@ export async function fetchAndConvertToMarkdown(
     const cacheHint = getDetailedCacheHint(resolvedUrl);
     const contextMarker = [readContext, cacheHint].filter(Boolean).join('\n\n');
     
-    return `${contextMarker}\n\n📄 【新页面内容】${resolvedUrl} (${result.length}字符, ${duration}ms)\n\n${result}`;
+    let finalResult = result;
+    
+    // Add continuation hint if content was truncated
+    if (paginationOptions.maxLength && markdownContent.length > paginationOptions.maxLength) {
+      const remaining = markdownContent.length - paginationOptions.maxLength;
+      const nextStart = (paginationOptions.startChar || 0) + paginationOptions.maxLength;
+      finalResult += `\n\n⏭️ 内容已截断，剩余 ${remaining} 字符。如需继续读取，请使用 start_index=${nextStart} 参数。`;
+    }
+    
+    return `${contextMarker}\n\n📄 【新页面内容】${resolvedUrl} (${finalResult.length}字符, ${duration}ms)\n\n${finalResult}`;
   } catch (error: any) {
     if (error.name === "AbortError") {
       logMessage(server, "error", `Timeout fetching URL: ${resolvedUrl} (${fetchTimeout}ms)`);
