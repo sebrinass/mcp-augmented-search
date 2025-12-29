@@ -1,4 +1,5 @@
 import { loadConfig } from './config.js';
+import { getEmbedding, cosineSimilarity } from './embedding.js';
 
 interface CacheEntry<T> {
   data: T;
@@ -16,6 +17,212 @@ interface UrlCacheEntry {
   htmlContent: string;
   markdownContent: string;
   timestamp: number;
+}
+
+class SessionDeduplication {
+  private recentSearches: Map<string, { timestamp: number; results: SearchCacheEntry['results'] | null }> = new Map();
+  private readonly maxRecentSearches = 100;
+  private readonly dedupWindowMs = 5 * 60 * 1000;
+
+  private getCacheKey(text: string): string {
+    return text.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 200);
+  }
+
+  isDuplicate(query: string): boolean {
+    const key = this.getCacheKey(query);
+    const entry = this.recentSearches.get(key);
+    
+    if (!entry) {
+      return false;
+    }
+
+    const isWithinWindow = Date.now() - entry.timestamp < this.dedupWindowMs;
+    
+    if (isWithinWindow) {
+      return true;
+    } else {
+      this.recentSearches.delete(key);
+      return false;
+    }
+  }
+
+  getDuplicateResult(query: string): SearchCacheEntry['results'] | null {
+    const key = this.getCacheKey(query);
+    const entry = this.recentSearches.get(key);
+    
+    if (!entry) {
+      return null;
+    }
+
+    const isWithinWindow = Date.now() - entry.timestamp < this.dedupWindowMs;
+    
+    if (isWithinWindow && entry.results) {
+      return entry.results;
+    }
+    
+    if (!isWithinWindow) {
+      this.recentSearches.delete(key);
+    }
+    
+    return null;
+  }
+
+  markSearched(query: string, results: SearchCacheEntry['results'] | null): void {
+    const key = this.getCacheKey(query);
+    
+    this.recentSearches.set(key, {
+      timestamp: Date.now(),
+      results
+    });
+
+    while (this.recentSearches.size > this.maxRecentSearches) {
+      const oldestKey = this.findOldestKey();
+      if (oldestKey) {
+        this.recentSearches.delete(oldestKey);
+      }
+    }
+  }
+
+  private findOldestKey(): string | null {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [key, entry] of this.recentSearches) {
+      if (entry.timestamp < oldestTime) {
+        oldestTime = entry.timestamp;
+        oldestKey = key;
+      }
+    }
+
+    return oldestKey;
+  }
+
+  clear(): void {
+    this.recentSearches.clear();
+  }
+
+  getStats(): { size: number; maxSize: number } {
+    return {
+      size: this.recentSearches.size,
+      maxSize: this.maxRecentSearches
+    };
+  }
+}
+
+class SemanticSearchCache {
+  private semanticCache: Map<string, { query: string; embedding: number[]; results: SearchCacheEntry['results']; timestamp: number }> = new Map();
+  private readonly maxEntries = 50;
+  private readonly similarityThreshold = 0.85;
+  private readonly ttlMs = 30 * 60 * 1000;
+
+  private getCacheKey(text: string): string {
+    return text.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 100);
+  }
+
+  private isExpired(timestamp: number): boolean {
+    return Date.now() - timestamp > this.ttlMs;
+  }
+
+  async findSimilar(query: string): Promise<SearchCacheEntry['results'] | null> {
+    const config = loadConfig();
+    if (!config.embedding.enabled) {
+      return null;
+    }
+
+    const queryEmbedding = await getEmbedding(query);
+    if (queryEmbedding.length === 0) {
+      return null;
+    }
+
+    let bestMatch: { key: string; similarity: number; entry: any } | null = null;
+    let bestSimilarity = this.similarityThreshold;
+
+    for (const [key, entry] of this.semanticCache) {
+      if (this.isExpired(entry.timestamp)) {
+        this.semanticCache.delete(key);
+        continue;
+      }
+
+      if (!entry.embedding || entry.embedding.length !== queryEmbedding.length) {
+        continue;
+      }
+
+      const similarity = cosineSimilarity(queryEmbedding, entry.embedding);
+
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = { key, similarity, entry };
+      }
+    }
+
+    if (bestMatch) {
+      bestMatch.entry.timestamp = Date.now();
+      return bestMatch.entry.results;
+    }
+
+    return null;
+  }
+
+  async set(query: string, results: SearchCacheEntry['results']): Promise<void> {
+    const config = loadConfig();
+    if (!config.embedding.enabled) {
+      return;
+    }
+
+    const queryEmbedding = await getEmbedding(query);
+    if (queryEmbedding.length === 0) {
+      return;
+    }
+
+    const cacheKey = this.getCacheKey(query);
+
+    if (this.semanticCache.has(cacheKey)) {
+      const entry = this.semanticCache.get(cacheKey)!;
+      entry.query = query;
+      entry.embedding = queryEmbedding;
+      entry.results = results;
+      entry.timestamp = Date.now();
+      return;
+    }
+
+    while (this.semanticCache.size >= this.maxEntries) {
+      let oldestKey: string | null = null;
+      let oldestTime = Infinity;
+
+      for (const [key, entry] of this.semanticCache) {
+        if (entry.timestamp < oldestTime) {
+          oldestTime = entry.timestamp;
+          oldestKey = key;
+        }
+      }
+
+      if (oldestKey) {
+        this.semanticCache.delete(oldestKey);
+      } else {
+        break;
+      }
+    }
+
+    if (this.semanticCache.size < this.maxEntries) {
+      this.semanticCache.set(cacheKey, {
+        query,
+        embedding: queryEmbedding,
+        results,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  clear(): void {
+    this.semanticCache.clear();
+  }
+
+  getStats(): { size: number; maxSize: number } {
+    return {
+      size: this.semanticCache.size,
+      maxSize: this.maxEntries
+    };
+  }
 }
 
 class UrlMemoryCache {
@@ -289,6 +496,7 @@ class MemoryCache {
 
 export const urlCache = new UrlMemoryCache();
 export const cache = new MemoryCache();
+export const sessionDedup = new SessionDeduplication();
 
 export function getCachedEmbedding(text: string): number[] | null {
   return cache.getEmbedding(text);
@@ -306,10 +514,48 @@ export function setCachedSearch(query: string, results: SearchCacheEntry['result
   cache.setSearch(query, results);
 }
 
+export function isSearchDuplicate(query: string): boolean {
+  return sessionDedup.isDuplicate(query);
+}
+
+export function getDuplicateSearchResult(query: string): SearchCacheEntry['results'] | null {
+  return sessionDedup.getDuplicateResult(query);
+}
+
+export function markSearchPerformed(query: string, results: SearchCacheEntry['results'] | null): void {
+  sessionDedup.markSearched(query, results);
+}
+
+export function clearSessionDedup(): void {
+  sessionDedup.clear();
+}
+
+export function getSessionDedupStats(): ReturnType<typeof sessionDedup.getStats> {
+  return sessionDedup.getStats();
+}
+
 export function clearCache(): void {
   cache.clear();
 }
 
 export function getCacheStats(): ReturnType<typeof cache.getStats> {
   return cache.getStats();
+}
+
+export const semanticCache = new SemanticSearchCache();
+
+export async function findSimilarSearch(query: string): Promise<SearchCacheEntry['results'] | null> {
+  return semanticCache.findSimilar(query);
+}
+
+export async function setSimilarSearch(query: string, results: SearchCacheEntry['results']): Promise<void> {
+  return semanticCache.set(query, results);
+}
+
+export function clearSemanticCache(): void {
+  semanticCache.clear();
+}
+
+export function getSemanticCacheStats(): ReturnType<typeof semanticCache.getStats> {
+  return semanticCache.getStats();
 }

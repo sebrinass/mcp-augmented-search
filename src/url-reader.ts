@@ -3,6 +3,7 @@ import { NodeHtmlMarkdown } from "node-html-markdown";
 import { createProxyAgent } from "./proxy.js";
 import { logMessage } from "./logging.js";
 import { urlCache } from "./cache.js";
+import { incrementUrlReadRound, recordUrlRead, getUrlReadContext, getCacheHint, getDetailedCacheHint, cacheUrlContent } from "./session-tracker.js";
 import {
   createURLFormatError,
   createNetworkError,
@@ -150,14 +151,26 @@ export async function fetchAndConvertToMarkdown(
   const startTime = Date.now();
   logMessage(server, "info", `Fetching URL: ${url}`);
 
+  incrementUrlReadRound();
+  const cacheHint = getCacheHint(url);
+  if (cacheHint) {
+    logMessage(server, "info", `Cache hint: ${cacheHint}`);
+  }
+
   // Check cache first
   const cachedEntry = urlCache.get(url);
   if (cachedEntry) {
     logMessage(server, "info", `Using cached content for URL: ${url}`);
+    recordUrlRead(url);
     const result = applyPaginationOptions(cachedEntry.markdownContent, paginationOptions);
     const duration = Date.now() - startTime;
     logMessage(server, "info", `Processed cached URL: ${url} (${result.length} chars in ${duration}ms)`);
-    return result;
+    
+    const cacheHint = getDetailedCacheHint(url);
+    const cacheMarker = cacheHint ? `${cacheHint}\n\n` : '';
+    const readContext = getUrlReadContext();
+    
+    return `${readContext}\n\n${cacheMarker}💾 【缓存命中】此页面内容来自URL缓存 (${duration}ms)\n\n${result}`;
   }
   
   // Validate URL format
@@ -242,13 +255,22 @@ export async function fetchAndConvertToMarkdown(
 
     // Only cache successful markdown conversion
     urlCache.set(url, htmlContent, markdownContent);
+    
+    cacheUrlContent(url, markdownContent);
 
     // Apply pagination options
     const result = applyPaginationOptions(markdownContent, paginationOptions);
 
     const duration = Date.now() - startTime;
     logMessage(server, "info", `Successfully fetched and converted URL: ${url} (${result.length} chars in ${duration}ms)`);
-    return result;
+    
+    recordUrlRead(url);
+    
+    const readContext = getUrlReadContext();
+    const cacheHint = getDetailedCacheHint(url);
+    const contextMarker = [readContext, cacheHint].filter(Boolean).join('\n\n');
+    
+    return `${contextMarker}\n\n📄 【新页面内容】${url} (${result.length}字符, ${duration}ms)\n\n${result}`;
   } catch (error: any) {
     if (error.name === "AbortError") {
       logMessage(server, "error", `Timeout fetching URL: ${url} (${timeoutMs}ms)`);
@@ -268,4 +290,53 @@ export async function fetchAndConvertToMarkdown(
     // Clean up the timeout to prevent memory leaks
     clearTimeout(timeoutId);
   }
+}
+
+export async function fetchAndConvertToMarkdownBatch(
+  server: Server,
+  urls: string[],
+  timeoutMs: number = 10000,
+  paginationOptions: PaginationOptions = {}
+): Promise<string> {
+  const startTime = Date.now();
+  logMessage(server, "info", `Starting batch URL fetch: ${urls.length} URLs`);
+
+  if (urls.length === 0) {
+    return "No URLs provided for batch reading.";
+  }
+
+  const results: Array<{ url: string; content: string; error?: string }> = [];
+
+  const fetchPromises = urls.map(async (url) => {
+    try {
+      const content = await fetchAndConvertToMarkdown(server, url, timeoutMs, paginationOptions);
+      results.push({ url, content });
+    } catch (error: any) {
+      results.push({
+        url,
+        content: "",
+        error: error.message || "Unknown error"
+      });
+    }
+  });
+
+  await Promise.all(fetchPromises);
+
+  const duration = Date.now() - startTime;
+  const successCount = results.filter(r => !r.error).length;
+  const errorCount = results.filter(r => r.error).length;
+
+  logMessage(server, "info", `Batch URL fetch completed: ${successCount}/${urls.length} successful in ${duration}ms`);
+
+  let output = `=== Batch URL Reading Results (${urls.length} URLs, ${successCount} success, ${errorCount} failed) ===\n\n`;
+
+  for (const result of results) {
+    if (result.error) {
+      output += `[URL: ${result.url}]\nError: ${result.error}\n\n---\n\n`;
+    } else {
+      output += `[URL: ${result.url}]\n${result.content}\n\n---\n\n`;
+    }
+  }
+
+  return output;
 }

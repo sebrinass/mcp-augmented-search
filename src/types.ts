@@ -69,13 +69,19 @@ export const READ_URL_TOOL: Tool = {
   name: "web_url_read",
   description:
     "Read the content from an URL. " +
-    "Use this for further information retrieving to understand the content of each URL.",
+    "Use this for further information retrieving to understand the content of each URL. " +
+    "For multiple URLs, use web_url_read_batch instead.",
   inputSchema: {
     type: "object",
     properties: {
       url: {
         type: "string",
-        description: "URL",
+        description: "URL to read",
+      },
+      urls: {
+        type: "array",
+        items: { type: "string" },
+        description: "Array of URLs to read in batch (alternative to single url parameter)",
       },
       startChar: {
         type: "number",
@@ -84,7 +90,7 @@ export const READ_URL_TOOL: Tool = {
       },
       maxLength: {
         type: "number",
-        description: "Maximum number of characters to return",
+        description: "Maximum number of characters to return per URL",
         minimum: 1,
       },
       section: {
@@ -103,3 +109,49 @@ export const READ_URL_TOOL: Tool = {
     required: ["url"],
   },
 };
+
+export function isWebUrlReadArgs(args: unknown): args is {
+  url?: string;
+  urls?: string[];
+  startChar?: number;
+  maxLength?: number;
+  section?: string;
+  paragraphRange?: string;
+  readHeadings?: boolean;
+} {
+  return (
+    typeof args === "object" &&
+    args !== null &&
+    (("url" in args && typeof (args as { url?: string }).url === "string") ||
+     ("urls" in args && Array.isArray((args as { urls?: string[] }).urls)))
+  );
+}
+
+export const QUERY_OPTIMIZE_TOOL: Tool = {
+  name: "searxng_analyze_query",
+  description:
+    "Analyze and optimize search queries for better results. " +
+    "Automatically detects comparative/relational questions and splits them into multiple targeted searches. " +
+    "Use this before performing searches on complex questions that compare or relate multiple entities.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "The search query to analyze and optimize",
+      },
+    },
+    required: ["query"],
+  },
+};
+
+export function isQueryOptimizeArgs(args: unknown): args is {
+  query: string;
+} {
+  return (
+    typeof args === "object" &&
+    args !== null &&
+    "query" in args &&
+    typeof (args as { query: string }).query === "string"
+  );
+}

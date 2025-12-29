@@ -13,7 +13,9 @@ import {
 } from "./error-handler.js";
 import { loadConfig } from "./config.js";
 import { rerankResults, getEmbedding } from "./embedding.js";
-import { getCachedSearch, setCachedSearch, getCacheStats } from "./cache.js";
+import { getCachedSearch, setCachedSearch, getCacheStats, isSearchDuplicate, getDuplicateSearchResult, markSearchPerformed, findSimilarSearch, setSimilarSearch } from "./cache.js";
+import { analyzeQuery, splitComparativeQuery, type QueryAnalysis } from "./query-optimizer.js";
+import { incrementSearchRound, recordSearch, getSearchContext, getCacheHint, getDetailedCacheHint, cacheSearchResults } from "./session-tracker.js";
 
 export interface SearchResult {
   title: string;
@@ -26,6 +28,25 @@ export interface ScoredResult extends SearchResult {
   similarity: number;
 }
 
+export interface OptimizedQueryResult {
+  original: string;
+  optimized: string[];
+  type: 'single' | 'comparative' | 'relational';
+  shouldSplit: boolean;
+  reason: string;
+}
+
+export function optimizeQuery(query: string): OptimizedQueryResult {
+  const analysis = analyzeQuery(query);
+  return {
+    original: analysis.original,
+    optimized: analysis.transformed,
+    type: analysis.type,
+    shouldSplit: analysis.needsSplit,
+    reason: analysis.reason,
+  };
+}
+
 export async function performWebSearch(
   server: Server,
   query: string,
@@ -36,7 +57,6 @@ export async function performWebSearch(
 ) {
   const startTime = Date.now();
   
-  // Build detailed log message with all parameters
   const searchParams = [
     `page ${pageno}`,
     `lang: ${language}`,
@@ -45,6 +65,49 @@ export async function performWebSearch(
   ].filter(Boolean).join(", ");
   
   logMessage(server, "info", `Starting web search: "${query}" (${searchParams})`);
+
+  incrementSearchRound();
+  const initialCacheHint = getCacheHint(query);
+  if (initialCacheHint) {
+    logMessage(server, "info", `Cache hint: ${initialCacheHint}`);
+  }
+
+  if (isSearchDuplicate(query)) {
+    const cachedResults = getDuplicateSearchResult(query);
+    const duration = Date.now() - startTime;
+    
+    if (cachedResults) {
+      logMessage(server, "info", `Session duplicate detected: "${query}" - returning cached results in ${duration}ms`);
+      const sessionConfig = loadConfig();
+      const detailedCacheHint = getDetailedCacheHint(query);
+      const cacheMarker = detailedCacheHint ? `${detailedCacheHint}\n\n` : '';
+      const resultsText = cachedResults
+        .slice(0, sessionConfig.embedding.topK)
+        .map((r) => `Title: ${r.title}\nDescription: ${r.content}\nURL: ${r.url}\nRelevance Score: ${r.score.toFixed(3)}`)
+        .join("\n\n");
+      return `${cacheMarker}📋 【缓存命中】此搜索结果来自会话缓存 (${duration}ms)\n\n${resultsText}`;
+    } else {
+      logMessage(server, "info", `Session duplicate detected: "${query}" - will skip empty result`);
+      return createNoResultsMessage(query);
+    }
+  }
+  
+  const config = loadConfig();
+  
+  if (config.embedding.enabled) {
+    const similarResults = await findSimilarSearch(query);
+    if (similarResults) {
+      const duration = Date.now() - startTime;
+      logMessage(server, "info", `Semantic cache hit: "${query}" - returning similar results in ${duration}ms`);
+      const detailedCacheHint = getDetailedCacheHint(query);
+      const cacheMarker = detailedCacheHint ? `${detailedCacheHint}\n\n` : '';
+      const resultsText = similarResults
+        .slice(0, config.embedding.topK)
+        .map((r) => `Title: ${r.title}\nDescription: ${r.content}\nURL: ${r.url}\nRelevance Score: ${r.score.toFixed(3)}`)
+        .join("\n\n");
+      return `${cacheMarker}🧠 【语义缓存命中】找到相似搜索结果 (${duration}ms)\n\n${resultsText}`;
+    }
+  }
   
   const searxngUrl = process.env.SEARXNG_URL;
 
@@ -188,16 +251,18 @@ export async function performWebSearch(
   if (cachedResult) {
     const duration = Date.now() - startTime;
     logMessage(server, "info", `Search cache hit: "${query}" (${searchParams}) - ${cachedResult.results.length} results in ${duration}ms (cached)`);
-    const config = loadConfig();
-    return cachedResult.results
-      .slice(0, config.embedding.topK)
+    const cachedConfig = loadConfig();
+    const cacheHint = getDetailedCacheHint(query);
+    const cacheMarker = cacheHint ? `${cacheHint}\n\n` : '';
+    const resultsText = cachedResult.results
+      .slice(0, cachedConfig.embedding.topK)
       .map((r) => `Title: ${r.title}\nDescription: ${r.content}\nURL: ${r.url}\nRelevance Score: ${r.score.toFixed(3)}`)
       .join("\n\n");
+    return `${cacheMarker}💾 【磁盘缓存命中】此搜索结果来自缓存 (${duration}ms)\n\n${resultsText}`;
   }
 
   setCachedSearch(cacheKey, results);
 
-  const config = loadConfig();
   let finalResults = results;
 
   if (config.embedding.enabled && results.length > 0) {
@@ -225,7 +290,26 @@ export async function performWebSearch(
   const duration = Date.now() - startTime;
   logMessage(server, "info", `Search completed: "${query}" (${searchParams}) - ${finalResults.length} results in ${duration}ms`);
 
-  return finalResults
+  markSearchPerformed(query, finalResults);
+
+  recordSearch(query);
+  logMessage(server, "info", `Search recorded: "${query}"`);
+
+  cacheSearchResults(query, JSON.stringify(finalResults));
+
+  const embeddingConfig = loadConfig().embedding;
+  if (embeddingConfig.enabled && finalResults.length > 0) {
+    await setSimilarSearch(query, finalResults);
+    logMessage(server, "info", `Saved to semantic cache: "${query}"`);
+  }
+
+  const searchContext = getSearchContext();
+  const cacheHint = getDetailedCacheHint(query);
+  const contextMarker = [searchContext, cacheHint].filter(Boolean).join('\n\n');
+
+  const resultsText = finalResults
     .map((r) => `Title: ${r.title}\nDescription: ${r.content}\nURL: ${r.url}\nRelevance Score: ${r.score.toFixed(3)}`)
     .join("\n\n");
+
+  return `${contextMarker}\n\n🔍 【新搜索结果】耗时 ${duration}ms\n\n${resultsText}`;
 }

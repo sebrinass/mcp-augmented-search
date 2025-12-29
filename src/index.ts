@@ -12,10 +12,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 // Import modularized functionality
-import { WEB_SEARCH_TOOL, READ_URL_TOOL, isSearXNGWebSearchArgs } from "./types.js";
+import { WEB_SEARCH_TOOL, READ_URL_TOOL, isSearXNGWebSearchArgs, QUERY_OPTIMIZE_TOOL, isQueryOptimizeArgs } from "./types.js";
 import { logMessage, setLogLevel } from "./logging.js";
-import { performWebSearch } from "./search.js";
-import { fetchAndConvertToMarkdown } from "./url-reader.js";
+import { performWebSearch, optimizeQuery } from "./search.js";
+import { fetchAndConvertToMarkdown, fetchAndConvertToMarkdownBatch } from "./url-reader.js";
 import { createConfigResource, createHelpResource } from "./resources.js";
 import { createHttpServer } from "./http-server.js";
 import { validateEnvironment as validateEnv } from "./error-handler.js";
@@ -31,7 +31,8 @@ let currentLogLevel: LoggingLevel = "info";
 
 // Type guard for URL reading args
 export function isWebUrlReadArgs(args: unknown): args is {
-  url: string;
+  url?: string;
+  urls?: string[];
   startChar?: number;
   maxLength?: number;
   section?: string;
@@ -40,14 +41,20 @@ export function isWebUrlReadArgs(args: unknown): args is {
 } {
   if (
     typeof args !== "object" ||
-    args === null ||
-    !("url" in args) ||
-    typeof (args as { url: string }).url !== "string"
+    args === null
   ) {
     return false;
   }
 
   const urlArgs = args as any;
+
+  // Check for either single url or urls array
+  const hasSingleUrl = "url" in urlArgs && typeof urlArgs.url === "string";
+  const hasUrlsArray = "urls" in urlArgs && Array.isArray(urlArgs.urls) && urlArgs.urls.every((u: any) => typeof u === "string");
+
+  if (!hasSingleUrl && !hasUrlsArray) {
+    return false;
+  }
 
   // Convert empty strings to undefined for optional string parameters
   if (urlArgs.section === "") urlArgs.section = undefined;
@@ -92,6 +99,10 @@ const server = new Server(
           description: READ_URL_TOOL.description,
           schema: READ_URL_TOOL.inputSchema,
         },
+        searxng_analyze_query: {
+          description: QUERY_OPTIMIZE_TOOL.description,
+          schema: QUERY_OPTIMIZE_TOOL.inputSchema,
+        },
       },
     },
   }
@@ -101,7 +112,7 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   logMessage(server, "debug", "Handling list_tools request");
   return {
-    tools: [WEB_SEARCH_TOOL, READ_URL_TOOL],
+    tools: [WEB_SEARCH_TOOL, READ_URL_TOOL, QUERY_OPTIMIZE_TOOL],
   };
 });
 
@@ -146,13 +157,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         readHeadings: args.readHeadings,
       };
 
-      const result = await fetchAndConvertToMarkdown(server, args.url, 10000, paginationOptions);
+      let result: string;
+
+      if (args.urls && Array.isArray(args.urls) && args.urls.length > 0) {
+        logMessage(server, "info", `Batch URL reading: ${args.urls.length} URLs`);
+        result = await fetchAndConvertToMarkdownBatch(server, args.urls, 10000, paginationOptions);
+      } else if (args.url) {
+        result = await fetchAndConvertToMarkdown(server, args.url, 10000, paginationOptions);
+      } else {
+        throw new Error("Either 'url' or 'urls' parameter must be provided");
+      }
 
       return {
         content: [
           {
             type: "text",
             text: result,
+          },
+        ],
+      };
+    } else if (name === "searxng_analyze_query") {
+      if (!isQueryOptimizeArgs(args)) {
+        throw new Error("Invalid arguments for query optimization");
+      }
+
+      const optimized = optimizeQuery(args.query);
+      const analysisResult = JSON.stringify(optimized, null, 2);
+
+      logMessage(server, "info", `Query analysis: "${args.query}" -> type: ${optimized.type}, shouldSplit: ${optimized.shouldSplit}`);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: analysisResult,
           },
         ],
       };
