@@ -13,10 +13,33 @@ An [MCP server](https://modelcontextprotocol.io/introduction) implementation tha
 - **Web Search**: General queries, news, articles, with pagination.
 - **URL Content Reading**: Advanced content extraction with pagination, section filtering, and heading extraction.
 - **Intelligent Caching**: URL content is cached with TTL (Time-To-Live) to improve performance and reduce redundant requests.
+- **Semantic Embedding**: Generate vector embeddings using Ollama for semantic similarity scoring.
+- **Similarity-Based Ranking**: Combine traditional keyword matching with semantic similarity for improved search results.
 - **Pagination**: Control which page of results to retrieve.
 - **Time Filtering**: Filter results by time range (day, month, year).
 - **Language Selection**: Filter results by preferred language.
 - **Safe Search**: Control content filtering level for search results.
+
+## Fork Modifications
+
+This fork adds the following enhancements to the original mcp-searxng project:
+
+### Semantic Embedding Integration
+- **Ollama Integration**: Added support for generating semantic embeddings using Ollama
+- **Cosine Similarity Scoring**: Implemented cosine similarity algorithm to score and rank search results
+- **Text Chunking**: Smart text chunking with configurable chunk size and overlap for better embedding quality
+- **Top-K Results**: Retrieve top-K most similar results based on semantic similarity
+
+### Enhanced Caching System
+- **Multi-Level Caching**: Separate caches for URL content, search results, and embeddings
+- **LRU Eviction**: Least Recently Used cache eviction when maximum size is reached
+- **TTL Support**: Time-based cache expiration for all cached items
+- **Memory Efficient**: In-memory caching with configurable maximum size limits
+
+### HTTP Transport Improvements
+- **Session Management**: Enhanced HTTP server with proper session handling
+- **CORS Support**: Added CORS headers for web client compatibility
+- **Health Endpoint**: Added `/health` endpoint for monitoring
 
 ## Tools
 
@@ -54,6 +77,21 @@ An [MCP server](https://modelcontextprotocol.io/introduction) implementation tha
 - **`HTTP_PROXY`** / **`HTTPS_PROXY`**: Proxy URLs for routing traffic
   - Format: `http://[username:password@]proxy.host:port`
 - **`NO_PROXY`**: Comma-separated bypass list (e.g., `localhost,.internal,example.com`)
+
+#### Embedding Configuration (Ollama Integration)
+- **`ENABLE_EMBEDDING`**: Enable semantic embedding feature (default: `true`)
+- **`OLLAMA_HOST`**: Ollama server URL (default: `http://localhost:11434`)
+- **`EMBEDDING_MODEL`**: Embedding model name (default: `nomic-embed-text`)
+- **`TOP_K`**: Number of top similar results to return based on embedding similarity (default: `3`)
+- **`CHUNK_SIZE`**: Text chunk size for embedding generation (default: `1000`)
+- **`CHUNK_OVERLAP`**: Overlap between text chunks (default: `100`)
+
+#### Cache Configuration
+- **`ENABLE_CACHE`**: Enable caching feature (default: `true`)
+- **`CACHE_TTL`**: Cache time-to-live in seconds (default: `300`)
+- **`CACHE_MAX_SIZE`**: Maximum number of items to cache (default: `1000`)
+- **`CACHE_SEARCH`**: Enable caching for search results (default: `true`)
+- **`CACHE_EMBEDDING`**: Enable caching for embeddings (default: `true`)
 
 ## Installation & Configuration
 
