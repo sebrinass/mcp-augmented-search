@@ -409,6 +409,110 @@ SEARXNG_URL=http://localhost:8080 npm run watch
 
 ## 十一、版本历史
 
+### v0.8.0+4（2024年12月29日）- Fetch MCP 功能移植
+
+#### 核心变更
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| 超时控制 | ✅ | 新增 `timeoutMs` 参数，防止长时间等待 |
+| 自定义 User-Agent | ✅ | 新增 `userAgent` 参数，模拟浏览器访问 |
+| 内容分块读取 | ✅ | 新增 `startChar` 和 `maxLength` 参数，支持分批读取 |
+| HTML 转 Markdown | ✅ | 自动转换，失败时返回原始 HTML |
+| Mozilla Readability 内容提取 | ✅ | 自动提取文章正文，去除导航、广告等噪声 |
+
+#### 技术实现
+
+**新增依赖**：
+- `@mozilla/readability` - Mozilla 官方内容提取库
+- `jsdom` - DOM 解析库
+- `@types/jsdom` - TypeScript 类型定义
+
+**修改文件**：
+- `src/url-reader.ts` - 添加内容提取、超时控制、User-Agent、分块读取
+- `src/config.ts` - 添加 FetchConfig 接口和超时配置
+- `src/types.ts` - 添加 timeoutMs 参数到 URL 读取工具
+
+**核心代码逻辑**：
+
+```typescript
+// 1. 超时控制
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
+
+// 2. 自定义 User-Agent
+const requestOptions: RequestInit = {
+  signal: controller.signal,
+  headers: {
+    "User-Agent": userAgent
+  }
+};
+
+// 3. 内容提取（Readability）
+const dom = new JSDOM(htmlContent);
+const reader = new Readability(dom.window.document);
+const article = reader.parse();
+extractedHtmlContent = article.content;
+
+// 4. HTML 转 Markdown
+markdownContent = NodeHtmlMarkdown.translate(extractedHtmlContent);
+
+// 5. 内容分块
+result = applyCharacterPagination(result, options.startChar, options.maxLength);
+
+// 6. 继续读取提示
+if (contentWasTruncated) {
+  finalResult += `\n\n⏭️ 内容已截断，剩余 ${remaining} 字符。如需继续读取，请使用 start_index=${nextStart} 参数。`;
+}
+```
+
+#### 测试结果
+
+**超时控制测试**：
+- URL: https://httpbin.org/delay/5
+- 设置: timeoutMs=3000
+- 结果: ✅ 正确触发超时错误
+
+**内容分块读取测试**：
+- URL: https://www.cnblogs.com/sexintercourse/p/13740316.html
+- 第一次: maxLength=1000 → 返回前1000字符
+- 第二次: startChar=1000, maxLength=1000 → 从1000字符继续读
+- 结果: ✅ 成功分块读取，缓存命中
+
+**HTML 转 Markdown 测试**：
+- URL: https://www.ruanyifeng.com/blog/2019/09/react-hooks.html
+- 结果: ✅ 成功转换为 Markdown 格式
+
+**内容提取测试**：
+- URL: https://www.ruanyifeng.com/blog/2019/09/react-hooks.html
+- 提取内容: 标题、作者、日期、正文
+- 质量: ⭐⭐⭐⭐⭐ (优秀)
+- 备注: 保留了少量导航链接
+
+- URL: https://blog.csdn.net/itcast_cn/article/details/107468172
+- 提取内容: 标题、发布时间、版权声明
+- 质量: ⭐⭐⭐ (一般)
+- 备注: CSDN 网站结构复杂，提取效果不如阮一峰博客
+
+#### 功能对比
+
+| 功能 | 之前 | 现在 | 改进 |
+|------|------|------|------|
+| 超时控制 | ❌ 无 | ✅ 可配置 | 防止长时间等待 |
+| User-Agent | 固定 | ✅ 可自定义 | 更好兼容性 |
+| 内容分块 | ❌ 一次性返回 | ✅ 分批读取 | 节省 token |
+| HTML 转 Markdown | ✅ 基础转换 | ✅ 智能提取 | 去除噪声 |
+| 内容提取 | ❌ 返回完整 HTML | ✅ 提取正文 | 大幅减少 token |
+
+#### 待实现功能
+
+| 优先级 | 功能 | 建议 |
+|-------|------|------|
+| 5 | robots.txt 检查 | 可选，增加延迟 |
+| 7 | 其他 Fetch 功能 | 看具体需求 |
+
+---
+
 ### v0.8.0+3（2024年12月29日）- URL 功能优化
 
 #### 功能规划（待实现）
