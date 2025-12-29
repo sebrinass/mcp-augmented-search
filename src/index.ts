@@ -119,7 +119,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Call tool handler
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  logMessage(server, "debug", `Handling call_tool request: ${name}`);
+  
+  const sessionId = (request as any)._meta?.sessionId || "default";
+  
+  logMessage(server, "debug", `Handling call_tool request: ${name} (session: ${sessionId})`);
 
   try {
     if (name === "searxng_web_search") {
@@ -133,7 +136,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         args.pageno,
         args.time_range,
         args.language,
-        args.safesearch
+        args.safesearch,
+        sessionId
       );
 
       return {
@@ -161,9 +165,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       if (args.urls && Array.isArray(args.urls) && args.urls.length > 0) {
         logMessage(server, "info", `Batch URL reading: ${args.urls.length} URLs`);
-        result = await fetchAndConvertToMarkdownBatch(server, args.urls, args.timeoutMs, paginationOptions);
+        result = await fetchAndConvertToMarkdownBatch(server, args.urls, args.timeoutMs, paginationOptions, sessionId);
       } else if (args.url) {
-        result = await fetchAndConvertToMarkdown(server, args.url, args.timeoutMs, paginationOptions);
+        result = await fetchAndConvertToMarkdown(server, args.url, args.timeoutMs, paginationOptions, sessionId);
       } else {
         throw new Error("Either 'url' or 'urls' parameter must be provided");
       }

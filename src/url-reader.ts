@@ -177,7 +177,8 @@ export async function fetchAndConvertToMarkdown(
   server: Server,
   url: string,
   timeoutMs?: number,
-  paginationOptions: PaginationOptions = {}
+  paginationOptions: PaginationOptions = {},
+  sessionId: string = "default"
 ) {
   const startTime = Date.now();
   const config = loadConfig();
@@ -188,8 +189,8 @@ export async function fetchAndConvertToMarkdown(
   
   logMessage(server, "info", `Fetching URL: ${url} (timeout: ${fetchTimeout}ms, user-agent: ${userAgent})`);
 
-  incrementUrlReadRound();
-  const cacheHint = getCacheHint(url);
+  incrementUrlReadRound(sessionId);
+  const cacheHint = getCacheHint(sessionId, url);
   if (cacheHint) {
     logMessage(server, "info", `Cache hint: ${cacheHint}`);
   }
@@ -201,14 +202,14 @@ export async function fetchAndConvertToMarkdown(
   const cachedEntry = urlCache.get(resolvedUrl);
   if (cachedEntry) {
     logMessage(server, "info", `Using cached content for URL: ${resolvedUrl}`);
-    recordUrlRead(resolvedUrl);
+    recordUrlRead(sessionId, resolvedUrl);
     const result = applyPaginationOptions(cachedEntry.markdownContent, paginationOptions);
     const duration = Date.now() - startTime;
     logMessage(server, "info", `Processed cached URL: ${resolvedUrl} (${result.length} chars in ${duration}ms)`);
     
-    const cacheHint = getDetailedCacheHint(resolvedUrl);
+    const cacheHint = getDetailedCacheHint(sessionId, resolvedUrl);
     const cacheMarker = cacheHint ? `${cacheHint}\n\n` : '';
-    const readContext = getUrlReadContext();
+    const readContext = getUrlReadContext(sessionId);
     
     return `${readContext}\n\n${cacheMarker}💾 【缓存命中】此页面内容来自URL缓存 (${duration}ms)\n\n${result}`;
   }
@@ -335,10 +336,10 @@ export async function fetchAndConvertToMarkdown(
     const duration = Date.now() - startTime;
     logMessage(server, "info", `Successfully fetched and converted URL: ${url} (${result.length} chars in ${duration}ms)`);
     
-    recordUrlRead(resolvedUrl);
+    recordUrlRead(sessionId, resolvedUrl);
     
-    const readContext = getUrlReadContext();
-    const cacheHint = getDetailedCacheHint(resolvedUrl);
+    const readContext = getUrlReadContext(sessionId);
+    const cacheHint = getDetailedCacheHint(sessionId, resolvedUrl);
     const contextMarker = [readContext, cacheHint].filter(Boolean).join('\n\n');
     
     let finalResult = result;
@@ -376,7 +377,8 @@ export async function fetchAndConvertToMarkdownBatch(
   server: Server,
   urls: string[],
   timeoutMs?: number,
-  paginationOptions: PaginationOptions = {}
+  paginationOptions: PaginationOptions = {},
+  sessionId: string = "default"
 ): Promise<string> {
   const startTime = Date.now();
   const config = loadConfig();
@@ -392,7 +394,7 @@ export async function fetchAndConvertToMarkdownBatch(
 
   const fetchPromises = urls.map(async (url) => {
     try {
-      const content = await fetchAndConvertToMarkdown(server, url, timeoutMs, paginationOptions);
+      const content = await fetchAndConvertToMarkdown(server, url, timeoutMs, paginationOptions, sessionId);
       results.push({ url, content });
     } catch (error: any) {
       results.push({

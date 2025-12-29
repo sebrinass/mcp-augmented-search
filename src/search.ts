@@ -33,7 +33,8 @@ export async function performWebSearch(
   pageno: number = 1,
   time_range?: string,
   language: string = "all",
-  safesearch?: string
+  safesearch?: string,
+  sessionId: string = "default"
 ) {
   const startTime = Date.now();
   
@@ -46,8 +47,8 @@ export async function performWebSearch(
   
   logMessage(server, "info", `Starting web search: "${query}" (${searchParams})`);
 
-  incrementSearchRound();
-  const initialCacheHint = getCacheHint(query);
+  incrementSearchRound(sessionId);
+  const initialCacheHint = getCacheHint(sessionId, query);
   if (initialCacheHint) {
     logMessage(server, "info", `Cache hint: ${initialCacheHint}`);
   }
@@ -59,7 +60,7 @@ export async function performWebSearch(
     if (cachedResults) {
       logMessage(server, "info", `Session duplicate detected: "${query}" - returning cached results in ${duration}ms`);
       const sessionConfig = loadConfig();
-      const detailedCacheHint = getDetailedCacheHint(query);
+      const detailedCacheHint = getDetailedCacheHint(sessionId, query);
       const cacheMarker = detailedCacheHint ? `${detailedCacheHint}\n\n` : '';
       const resultsText = cachedResults
         .slice(0, sessionConfig.embedding.topK)
@@ -85,7 +86,7 @@ export async function performWebSearch(
     if (similarResults) {
       const duration = Date.now() - startTime;
       logMessage(server, "info", `Semantic cache hit: "${query}" - returning similar results in ${duration}ms`);
-      const detailedCacheHint = getDetailedCacheHint(query);
+      const detailedCacheHint = getDetailedCacheHint(sessionId, query);
       const cacheMarker = detailedCacheHint ? `${detailedCacheHint}\n\n` : '';
       const resultsText = similarResults
         .slice(0, config.embedding.topK)
@@ -244,7 +245,7 @@ export async function performWebSearch(
     const duration = Date.now() - startTime;
     logMessage(server, "info", `Search cache hit: "${query}" (${searchParams}) - ${cachedResult.results.length} results in ${duration}ms (cached)`);
     const cachedConfig = loadConfig();
-    const cacheHint = getDetailedCacheHint(query);
+    const cacheHint = getDetailedCacheHint(sessionId, query);
   const cacheMarker = cacheHint ? `${cacheHint}\n\n` : '';
   const resultsText = cachedResult.results
     .slice(0, cachedConfig.embedding.topK)
@@ -290,7 +291,7 @@ export async function performWebSearch(
 
   markSearchPerformed(query, finalResults);
 
-  recordSearch(query);
+  recordSearch(sessionId, query);
   logMessage(server, "info", `Search recorded: "${query}"`);
 
   cacheSearchResults(query, JSON.stringify(finalResults));
@@ -301,8 +302,8 @@ export async function performWebSearch(
     logMessage(server, "info", `Saved to semantic cache: "${query}"`);
   }
 
-  const searchContext = getSearchContext();
-  const cacheHint = getDetailedCacheHint(query);
+  const searchContext = getSearchContext(sessionId);
+  const cacheHint = getDetailedCacheHint(sessionId, query);
   const contextMarker = [searchContext, cacheHint].filter(Boolean).join('\n\n');
 
   const resultsText = finalResults

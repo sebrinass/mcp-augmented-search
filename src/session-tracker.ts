@@ -8,60 +8,89 @@ interface SessionContext {
   searchedQueries: string[];
   readUrls: string[];
   sessionStartTime: number;
+}
+
+interface GlobalCache {
   searchResultsCache: Map<string, string>;
   urlContentCache: Map<string, string>;
 }
 
 class SessionTracker {
-  private context: SessionContext;
+  private sessions: Map<string, SessionContext> = new Map();
+  private globalCache: GlobalCache;
   private readonly maxTrackedQueries = 20;
   private readonly maxTrackedUrls = 50;
   private readonly maxResultsCacheSize = 100;
   private readonly maxContentCacheSize = 200;
+  private readonly sessionCleanupIntervalMs = 30 * 60 * 1000;
+  private readonly maxSessionAgeMs = 60 * 60 * 1000;
 
   constructor() {
-    this.context = {
-      searchRound: 0,
-      urlReadRound: 0,
-      totalSearches: 0,
-      totalUrlsRead: 0,
-      searchedQueries: [],
-      readUrls: [],
-      sessionStartTime: Date.now(),
+    this.globalCache = {
       searchResultsCache: new Map(),
       urlContentCache: new Map(),
     };
-  }
-
-  incrementSearchRound(): void {
-    this.context.searchRound += 1;
-  }
-
-  incrementUrlReadRound(): void {
-    this.context.urlReadRound += 1;
-  }
-
-  recordSearch(query: string): void {
-    this.context.totalSearches += 1;
-    const normalizedQuery = query.toLowerCase().trim().slice(0, 100);
     
-    if (!this.context.searchedQueries.includes(normalizedQuery)) {
-      this.context.searchedQueries.unshift(normalizedQuery);
-      
-      while (this.context.searchedQueries.length > this.maxTrackedQueries) {
-        this.context.searchedQueries.pop();
+    setInterval(() => this.cleanupOldSessions(), this.sessionCleanupIntervalMs);
+  }
+
+  private getOrCreateSession(sessionId: string): SessionContext {
+    if (!this.sessions.has(sessionId)) {
+      this.sessions.set(sessionId, {
+        searchRound: 0,
+        urlReadRound: 0,
+        totalSearches: 0,
+        totalUrlsRead: 0,
+        searchedQueries: [],
+        readUrls: [],
+        sessionStartTime: Date.now(),
+      });
+    }
+    return this.sessions.get(sessionId)!;
+  }
+
+  private cleanupOldSessions(): void {
+    const now = Date.now();
+    for (const [sessionId, session] of this.sessions.entries()) {
+      if (now - session.sessionStartTime > this.maxSessionAgeMs) {
+        this.sessions.delete(sessionId);
       }
     }
   }
 
-  recordUrlRead(url: string): void {
-    this.context.totalUrlsRead += 1;
+  incrementSearchRound(sessionId: string): void {
+    const session = this.getOrCreateSession(sessionId);
+    session.searchRound += 1;
+  }
+
+  incrementUrlReadRound(sessionId: string): void {
+    const session = this.getOrCreateSession(sessionId);
+    session.urlReadRound += 1;
+  }
+
+  recordSearch(sessionId: string, query: string): void {
+    const session = this.getOrCreateSession(sessionId);
+    session.totalSearches += 1;
+    const normalizedQuery = query.toLowerCase().trim().slice(0, 100);
     
-    if (!this.context.readUrls.includes(url)) {
-      this.context.readUrls.unshift(url);
+    if (!session.searchedQueries.includes(normalizedQuery)) {
+      session.searchedQueries.unshift(normalizedQuery);
       
-      while (this.context.readUrls.length > this.maxTrackedUrls) {
-        this.context.readUrls.pop();
+      while (session.searchedQueries.length > this.maxTrackedQueries) {
+        session.searchedQueries.pop();
+      }
+    }
+  }
+
+  recordUrlRead(sessionId: string, url: string): void {
+    const session = this.getOrCreateSession(sessionId);
+    session.totalUrlsRead += 1;
+    
+    if (!session.readUrls.includes(url)) {
+      session.readUrls.unshift(url);
+      
+      while (session.readUrls.length > this.maxTrackedUrls) {
+        session.readUrls.pop();
       }
     }
   }
@@ -69,33 +98,34 @@ class SessionTracker {
   cacheSearchResults(query: string, results: string): void {
     const key = query.toLowerCase().trim().slice(0, 100);
     
-    while (this.context.searchResultsCache.size >= this.maxResultsCacheSize) {
-      const iteratorResult = this.context.searchResultsCache.keys().next();
+    while (this.globalCache.searchResultsCache.size >= this.maxResultsCacheSize) {
+      const iteratorResult = this.globalCache.searchResultsCache.keys().next();
       if (iteratorResult.done) break;
       const firstKey = iteratorResult.value;
-      this.context.searchResultsCache.delete(firstKey);
+      this.globalCache.searchResultsCache.delete(firstKey);
     }
     
-    this.context.searchResultsCache.set(key, results);
+    this.globalCache.searchResultsCache.set(key, results);
   }
 
   cacheUrlContent(url: string, content: string): void {
-    while (this.context.urlContentCache.size >= this.maxContentCacheSize) {
-      const iteratorResult = this.context.urlContentCache.keys().next();
+    while (this.globalCache.urlContentCache.size >= this.maxContentCacheSize) {
+      const iteratorResult = this.globalCache.urlContentCache.keys().next();
       if (iteratorResult.done) break;
       const firstKey = iteratorResult.value;
-      this.context.urlContentCache.delete(firstKey);
+      this.globalCache.urlContentCache.delete(firstKey);
     }
     
-    this.context.urlContentCache.set(url, content);
+    this.globalCache.urlContentCache.set(url, content);
   }
 
-  getContext(): SessionContext {
-    return { ...this.context };
+  getContext(sessionId: string): SessionContext {
+    return { ...this.getOrCreateSession(sessionId) };
   }
 
-  getSearchContext(): string {
-    const { searchRound, totalSearches, searchedQueries } = this.context;
+  getSearchContext(sessionId: string): string {
+    const session = this.getOrCreateSession(sessionId);
+    const { searchRound, totalSearches, searchedQueries } = session;
     let contextText = `【搜索进度】第 ${searchRound} 轮搜索，已完成 ${totalSearches} 次搜索\n`;
     
     if (searchedQueries.length > 0) {
@@ -108,8 +138,9 @@ class SessionTracker {
     return contextText;
   }
 
-  getUrlReadContext(): string {
-    const { urlReadRound, totalUrlsRead, readUrls } = this.context;
+  getUrlReadContext(sessionId: string): string {
+    const session = this.getOrCreateSession(sessionId);
+    const { urlReadRound, totalUrlsRead, readUrls } = session;
     let contextText = `【阅读进度】第 ${urlReadRound} 轮阅读，已读取 ${totalUrlsRead} 个页面\n`;
     
     if (readUrls.length > 0) {
@@ -122,8 +153,9 @@ class SessionTracker {
     return contextText;
   }
 
-  getDetailedCacheHint(query: string): string {
-    const { searchedQueries, readUrls, searchResultsCache, urlContentCache } = this.context;
+  getDetailedCacheHint(sessionId: string, query: string): string {
+    const session = this.getOrCreateSession(sessionId);
+    const { searchedQueries, readUrls } = session;
     const normalizedQuery = query.toLowerCase().trim();
     
     let hints: string[] = [];
@@ -134,8 +166,8 @@ class SessionTracker {
       if (!foundSearch && (searched.includes(normalizedQuery) || normalizedQuery.includes(searched))) {
         hints.push(`📋 已缓存搜索结果: "${searched}"`);
         foundSearch = true;
-        if (searchResultsCache.has(searched)) {
-          const results = searchResultsCache.get(searched);
+        if (this.globalCache.searchResultsCache.has(searched)) {
+          const results = this.globalCache.searchResultsCache.get(searched);
           const lineCount = (results?.split('\n\n') || []).length;
           hints.push(`   → 包含 ${lineCount} 条结果，共 ${results?.length || 0} 字符`);
         }
@@ -146,8 +178,8 @@ class SessionTracker {
       if (!foundUrl && (url.includes(normalizedQuery) || normalizedQuery.includes(url))) {
         hints.push(`📄 已缓存页面内容`);
         foundUrl = true;
-        if (urlContentCache.has(url)) {
-          const content = urlContentCache.get(url);
+        if (this.globalCache.urlContentCache.has(url)) {
+          const content = this.globalCache.urlContentCache.get(url);
           hints.push(`   → ${content?.length || 0} 字符`);
         }
         break;
@@ -185,8 +217,9 @@ class SessionTracker {
     return intersection.size / union.size;
   }
 
-  getCacheHint(query: string): string {
-    const { searchedQueries, readUrls } = this.context;
+  getCacheHint(sessionId: string, query: string): string {
+    const session = this.getOrCreateSession(sessionId);
+    const { searchedQueries, readUrls } = session;
     const normalizedQuery = query.toLowerCase().trim();
     
     let hints: string[] = [];
@@ -208,90 +241,85 @@ class SessionTracker {
     return hints.length > 0 ? hints.join('\n') : '';
   }
 
-  getCombinedContext(): string {
-    const searchCtx = this.getSearchContext();
-    const urlCtx = this.getUrlReadContext();
-    const cacheHint = this.getCacheHint('');
+  getCombinedContext(sessionId: string): string {
+    const searchCtx = this.getSearchContext(sessionId);
+    const urlCtx = this.getUrlReadContext(sessionId);
+    const cacheHint = this.getCacheHint(sessionId, '');
     
     return [searchCtx, urlCtx, cacheHint].filter(Boolean).join('\n\n');
   }
 
   getSearchCacheStatus(): { size: number; maxSize: number } {
     return {
-      size: this.context.searchResultsCache.size,
+      size: this.globalCache.searchResultsCache.size,
       maxSize: this.maxResultsCacheSize,
     };
   }
 
   getUrlCacheStatus(): { size: number; maxSize: number } {
     return {
-      size: this.context.urlContentCache.size,
+      size: this.globalCache.urlContentCache.size,
       maxSize: this.maxContentCacheSize,
     };
   }
 
-  reset(): void {
-    this.context = {
-      searchRound: 0,
-      urlReadRound: 0,
-      totalSearches: 0,
-      totalUrlsRead: 0,
-      searchedQueries: [],
-      readUrls: [],
-      sessionStartTime: Date.now(),
-      searchResultsCache: new Map(),
-      urlContentCache: new Map(),
+  resetSession(sessionId: string): void {
+    this.sessions.delete(sessionId);
+  }
+
+  getStats(sessionId: string): { searches: number; urls: number; round: number; uptime: number; searchCacheSize: number; urlCacheSize: number } {
+    const session = this.getOrCreateSession(sessionId);
+    return {
+      searches: session.totalSearches,
+      urls: session.totalUrlsRead,
+      round: session.searchRound,
+      uptime: Date.now() - session.sessionStartTime,
+      searchCacheSize: this.globalCache.searchResultsCache.size,
+      urlCacheSize: this.globalCache.urlContentCache.size,
     };
   }
 
-  getStats(): { searches: number; urls: number; round: number; uptime: number; searchCacheSize: number; urlCacheSize: number } {
-    return {
-      searches: this.context.totalSearches,
-      urls: this.context.totalUrlsRead,
-      round: this.context.searchRound,
-      uptime: Date.now() - this.context.sessionStartTime,
-      searchCacheSize: this.context.searchResultsCache.size,
-      urlCacheSize: this.context.urlContentCache.size,
-    };
+  getSessionCount(): number {
+    return this.sessions.size;
   }
 }
 
 export const sessionTracker = new SessionTracker();
 
-export function getSearchContext(): string {
-  return sessionTracker.getSearchContext();
+export function getSearchContext(sessionId: string): string {
+  return sessionTracker.getSearchContext(sessionId);
 }
 
-export function getUrlReadContext(): string {
-  return sessionTracker.getUrlReadContext();
+export function getUrlReadContext(sessionId: string): string {
+  return sessionTracker.getUrlReadContext(sessionId);
 }
 
-export function getCacheHint(query: string): string {
-  return sessionTracker.getCacheHint(query);
+export function getCacheHint(sessionId: string, query: string): string {
+  return sessionTracker.getCacheHint(sessionId, query);
 }
 
-export function getDetailedCacheHint(query: string): string {
-  return sessionTracker.getDetailedCacheHint(query);
+export function getDetailedCacheHint(sessionId: string, query: string): string {
+  return sessionTracker.getDetailedCacheHint(sessionId, query);
 }
 
-export function getCombinedContext(): string {
-  return sessionTracker.getCombinedContext();
+export function getCombinedContext(sessionId: string): string {
+  return sessionTracker.getCombinedContext(sessionId);
 }
 
-export function incrementSearchRound(): void {
-  sessionTracker.incrementSearchRound();
+export function incrementSearchRound(sessionId: string): void {
+  sessionTracker.incrementSearchRound(sessionId);
 }
 
-export function incrementUrlReadRound(): void {
-  sessionTracker.incrementUrlReadRound();
+export function incrementUrlReadRound(sessionId: string): void {
+  sessionTracker.incrementUrlReadRound(sessionId);
 }
 
-export function recordSearch(query: string): void {
-  sessionTracker.recordSearch(query);
+export function recordSearch(sessionId: string, query: string): void {
+  sessionTracker.recordSearch(sessionId, query);
 }
 
-export function recordUrlRead(url: string): void {
-  sessionTracker.recordUrlRead(url);
+export function recordUrlRead(sessionId: string, url: string): void {
+  sessionTracker.recordUrlRead(sessionId, url);
 }
 
 export function cacheSearchResults(query: string, results: string): void {
@@ -302,12 +330,12 @@ export function cacheUrlContent(url: string, content: string): void {
   sessionTracker.cacheUrlContent(url, content);
 }
 
-export function resetSession(): void {
-  sessionTracker.reset();
+export function resetSession(sessionId: string): void {
+  sessionTracker.resetSession(sessionId);
 }
 
-export function getSessionStats(): ReturnType<typeof sessionTracker.getStats> {
-  return sessionTracker.getStats();
+export function getSessionStats(sessionId: string): ReturnType<typeof sessionTracker.getStats> {
+  return sessionTracker.getStats(sessionId);
 }
 
 export function getSearchCacheStatus(): { size: number; maxSize: number } {
@@ -316,4 +344,8 @@ export function getSearchCacheStatus(): { size: number; maxSize: number } {
 
 export function getUrlCacheStatus(): { size: number; maxSize: number } {
   return sessionTracker.getUrlCacheStatus();
+}
+
+export function getSessionCount(): number {
+  return sessionTracker.getSessionCount();
 }
