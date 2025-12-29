@@ -13,6 +13,23 @@ export function logMessage(server: Server, level: LoggingLevel, message: string,
         ? (typeof data === 'object' && data !== null ? { message, ...data } : { message, data })
         : { message };
 
+      // Always output to console for Docker container logging
+      const timestamp = new Date().toISOString();
+      const logPrefixMap: { [key in LoggingLevel]?: string } = {
+        debug: '🔍',
+        info: 'ℹ️',
+        warning: '⚠️',
+        error: '❌'
+      };
+      const logPrefix = logPrefixMap[level] || '📝';
+
+      if (data) {
+        console.log(`${timestamp} ${logPrefix} [${level.toUpperCase()}] ${message}`, JSON.stringify(data, null, 2));
+      } else {
+        console.log(`${timestamp} ${logPrefix} [${level.toUpperCase()}] ${message}`);
+      }
+
+      // Also send via MCP protocol for client-side logging
       server.notification({
         method: "notifications/message",
         params: {

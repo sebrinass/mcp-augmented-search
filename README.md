@@ -30,7 +30,24 @@ An [MCP server](https://modelcontextprotocol.io/introduction) implementation tha
 
 ## Fork Modifications
 
-This fork adds the following enhancements to the original mcp-searxng project:
+This fork adds the following enhancements to original mcp-searxng project:
+
+### Batch URL Reading
+- **Parallel Reading**: Support reading multiple URLs simultaneously for improved efficiency
+- **Smart Deduplication**: Automatically filter duplicate or similar content URLs
+- **Progress Tracking**: Track URLs already read in current session to avoid redundant reads
+
+### Session Isolation System
+- **Independent History**: Each conversation session maintains separate search and reading history
+- **Global Cache**: Share cache across conversations for improved efficiency
+- **Session Cleanup**: Automatically clean up sessions older than 1 hour
+- **Deduplication Hints**: Provide hints for already searched/read content to help model avoid redundant operations
+
+### Cache Labeling Mechanism
+- **Search Result Labeling**: Mark cached content in search results
+- **URL Content Labeling**: Mark cached content in URL reading results
+- **Detailed Cache Info**: Provide cache hit time, content hash, and other details
+- **Semantic Cache Hints**: Combine embedding similarity for more accurate cache deduplication suggestions
 
 ### Semantic Embedding Integration
 - **Ollama Integration**: Added support for generating semantic embeddings using Ollama
@@ -46,8 +63,14 @@ This fork adds the following enhancements to the original mcp-searxng project:
 
 ### HTTP Transport Improvements
 - **Session Management**: Enhanced HTTP server with proper session handling
+- **Session Recovery**: Automatically create new session when client provides sessionId that doesn't exist on server
 - **CORS Support**: Added CORS headers for web client compatibility
 - **Health Endpoint**: Added `/health` endpoint for monitoring
+
+### Enhanced Logging System
+- **Dual Output**: Logs output to both Docker container stdout and MCP protocol notifications
+- **Formatted Output**: Timestamps and log level icons for easy reading
+- **Complete Coverage**: All important operations have detailed logging for troubleshooting
 
 ## Tools
 
@@ -59,18 +82,24 @@ This fork adds the following enhancements to the original mcp-searxng project:
     - `time_range` (string, optional): Filter results by time range - one of: "day", "month", "year" (default: none)
     - `language` (string, optional): Language code for results (e.g., "en", "fr", "de") or "all" (default: "all")
     - `safesearch` (number, optional): Safe search filter level (0: None, 1: Moderate, 2: Strict) (default: instance setting)
+    - `sessionId` (string, optional): Session identifier for tracking search history
+  - Returns: List of search results with URL, title, snippet, and cache labeling information
 
 - **web_url_read**
-  - Read and convert the content from a URL to markdown with advanced content extraction options
+  - Read and convert content from URLs to markdown with advanced content extraction options
   - Inputs:
-    - `url` (string): The URL to fetch and process
+    - `url` (string): Single URL to fetch and process
+    - `urls` (array of strings, optional): Multiple URLs to fetch and process in parallel
     - `startChar` (number, optional): Starting character position for content extraction (default: 0)
     - `maxLength` (number, optional): Maximum number of characters to return
     - `section` (string, optional): Extract content under a specific heading (searches for heading text)
     - `paragraphRange` (string, optional): Return specific paragraph ranges (e.g., '1-5', '3', '10-')
     - `readHeadings` (boolean, optional): Return only a list of headings instead of full content
     - `timeoutMs` (number, optional): HTTP request timeout in milliseconds (default: 30000)
+    - `sessionId` (string, optional): Session identifier for tracking reading history
+  - Returns: Extracted content in Markdown format, along with cache labeling information
   - Features:
+    - **Batch Reading**: Support reading multiple URLs simultaneously using the `urls` parameter
     - **Content Extraction**: Uses Mozilla Readability to extract main content, removing navigation, ads, and other noise
     - **Format Conversion**: Automatically converts HTML content to Markdown format for better readability
     - **Chunk Reading**: Supports reading large documents in chunks using `startChar` and `maxLength` parameters

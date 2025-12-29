@@ -31,7 +31,7 @@ export async function createHttpServer(server: Server): Promise<express.Applicat
       transport = transports[sessionId];
       logMessage(server, "debug", `Reusing session: ${sessionId}`);
     } else if (!sessionId && isInitializeRequest(req.body)) {
-      // New initialization request
+      // New initialization request without session ID
       logMessage(server, "info", "Creating new HTTP session");
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
@@ -39,10 +39,27 @@ export async function createHttpServer(server: Server): Promise<express.Applicat
           transports[sessionId] = transport;
           logMessage(server, "debug", `Session initialized: ${sessionId}`);
         },
-        // DNS rebinding protection disabled by default for backwards compatibility
-        // For production, consider enabling:
-        // enableDnsRebindingProtection: true,
-        // allowedHosts: ['127.0.0.1', 'localhost'],
+      });
+
+      // Clean up transport when closed
+      transport.onclose = () => {
+        if (transport.sessionId) {
+          logMessage(server, "debug", `Session closed: ${transport.sessionId}`);
+          delete transports[transport.sessionId];
+        }
+      };
+
+      // Connect the existing server to the new transport
+      await server.connect(transport);
+    } else if (sessionId && !transports[sessionId]) {
+      // Session ID provided but not found - create new session for this ID
+      logMessage(server, "info", `Session ${sessionId} not found, creating new session`);
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => sessionId,
+        onsessioninitialized: (newSessionId) => {
+          transports[newSessionId] = transport;
+          logMessage(server, "debug", `Session re-initialized: ${newSessionId}`);
+        },
       });
 
       // Clean up transport when closed
@@ -56,7 +73,7 @@ export async function createHttpServer(server: Server): Promise<express.Applicat
       // Connect the existing server to the new transport
       await server.connect(transport);
     } else {
-      // Invalid request
+      // Invalid request - no session ID and not an initialize request
       console.warn(`⚠️  POST request rejected - invalid request:`, {
         clientIP: req.ip || req.connection.remoteAddress,
         sessionId: sessionId || 'undefined',
