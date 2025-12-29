@@ -17,6 +17,7 @@ export interface CacheConfig {
 
 export interface FetchConfig {
   timeoutMs: number;
+  enableRobotsTxt: boolean;
 }
 
 export interface Config {
@@ -75,6 +76,7 @@ export function loadConfig(): Config {
     },
     fetch: {
       timeoutMs: getEnvNumber('FETCH_TIMEOUT_MS', 30000),
+      enableRobotsTxt: getEnvBoolean('ENABLE_ROBOTS_TXT', false),
     },
   };
 }

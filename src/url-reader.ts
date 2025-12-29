@@ -7,6 +7,7 @@ import { logMessage } from "./logging.js";
 import { urlCache } from "./cache.js";
 import { incrementUrlReadRound, recordUrlRead, getUrlReadContext, getCacheHint, getDetailedCacheHint, cacheUrlContent } from "./session-tracker.js";
 import { loadConfig } from "./config.js";
+import { isUrlAllowed } from "./robots.js";
 import {
   createURLFormatError,
   createNetworkError,
@@ -219,6 +220,13 @@ export async function fetchAndConvertToMarkdown(
   } catch (error) {
     logMessage(server, "error", `Invalid URL format: ${resolvedUrl}`);
     throw createURLFormatError(resolvedUrl);
+  }
+
+  // Check robots.txt if enabled
+  const allowed = await isUrlAllowed(resolvedUrl);
+  if (!allowed) {
+    logMessage(server, "warning", `URL blocked by robots.txt: ${resolvedUrl}`);
+    throw createContentError("Access to this URL is blocked by the website's robots.txt policy.", resolvedUrl);
   }
 
   // Create an AbortController instance
