@@ -16,6 +16,8 @@ An [MCP server](https://modelcontextprotocol.io/introduction) implementation tha
 - **URL Content Reading**: Advanced content extraction with pagination, section filtering, and heading extraction.
 - **Intelligent Caching**: URL content is cached with TTL (Time-To-Live) to improve performance and reduce redundant requests.
 - **Semantic Embedding**: Generate vector embeddings using Ollama for semantic similarity scoring.
+- **Hybrid Retrieval**: Combine BM25 (sparse) and Dense retrieval for improved search result relevance.
+- **Puppeteer Auto-Fallback**: Automatically fallback to browser rendering when fetch fails or content is empty.
 - **Similarity-Based Ranking**: Combine traditional keyword matching with semantic similarity for improved search results.
 - **Pagination**: Control which page of results to retrieve.
 - **Time Filtering**: Filter results by time range (day, month, year).
@@ -54,6 +56,8 @@ This fork adds the following enhancements to original mcp-searxng project:
 - **Cosine Similarity Scoring**: Implemented cosine similarity algorithm to score and rank search results
 - **Text Chunking**: Smart text chunking with configurable chunk size and overlap for better embedding quality
 - **Top-K Results**: Retrieve top-K most similar results based on semantic similarity
+- **BM25 Sparse Retrieval**: Custom BM25 algorithm implementation for keyword matching
+- **Hybrid Retrieval**: Combine BM25 (sparse) and Dense retrieval with 30%:70% weight
 
 ### Enhanced Caching System
 - **Multi-Level Caching**: Separate caches for URL content, search results, and embeddings
@@ -74,6 +78,55 @@ This fork adds the following enhancements to original mcp-searxng project:
 
 ## Tools
 
+### Important Usage Notes
+
+**⚠️ Tool Invocation Limits:**
+- **Single Call Design**: All tools are designed for single invocation, batch parameters are NOT supported
+- **Application-Layer Parallelism**: For parallel execution, initiate multiple independent tool calls simultaneously
+- **Correct Tool Name**: Use the full tool name including `Searxng____` prefix and `____mcp` suffix
+
+**✅ Correct Parallel Invocation (Application-Layer):**
+```json
+{
+  "tools": [
+    {
+      "name": "Searxng____searxng_web_search____mcp",
+      "arguments": {
+        "query": "keyword1",
+        "language": "zh"
+      }
+    },
+    {
+      "name": "Searxng____searxng_web_search____mcp",
+      "arguments": {
+        "query": "keyword2",
+        "language": "zh"
+      }
+    },
+    {
+      "name": "Searxng____searxng_web_search____mcp",
+      "arguments": {
+        "query": "keyword3",
+        "language": "zh"
+      }
+    }
+  ]
+}
+```
+
+**❌ Incorrect Invocation (Tool Not Supported):**
+```json
+{
+  "name": "Searxng____searxng_web_search____mcp",
+  "arguments": {
+    "tasks": [
+      {"query": "keyword1"},
+      {"query": "keyword2"}
+    ]
+  }
+}
+```
+
 - **searxng_web_search**
   - Execute web searches with pagination
   - Inputs:
@@ -84,12 +137,15 @@ This fork adds the following enhancements to original mcp-searxng project:
     - `safesearch` (number, optional): Safe search filter level (0: None, 1: Moderate, 2: Strict) (default: instance setting)
     - `sessionId` (string, optional): Session identifier for tracking search history
   - Returns: List of search results with URL, title, snippet, and cache labeling information
+  - **Notes**:
+    - Does NOT support `tasks` batch parameter
+    - For parallel search, initiate multiple independent search calls simultaneously
+    - Each call returns up to 5 results
 
 - **web_url_read**
   - Read and convert content from URLs to markdown with advanced content extraction options
   - Inputs:
     - `url` (string): Single URL to fetch and process
-    - `urls` (array of strings, optional): Multiple URLs to fetch and process in parallel
     - `startChar` (number, optional): Starting character position for content extraction (default: 0)
     - `maxLength` (number, optional): Maximum number of characters to return
     - `section` (string, optional): Extract content under a specific heading (searches for heading text)
@@ -99,7 +155,6 @@ This fork adds the following enhancements to original mcp-searxng project:
     - `sessionId` (string, optional): Session identifier for tracking reading history
   - Returns: Extracted content in Markdown format, along with cache labeling information
   - Features:
-    - **Batch Reading**: Support reading multiple URLs simultaneously using the `urls` parameter
     - **Content Extraction**: Uses Mozilla Readability to extract main content, removing navigation, ads, and other noise
     - **Format Conversion**: Automatically converts HTML content to Markdown format for better readability
     - **Chunk Reading**: Supports reading large documents in chunks using `startChar` and `maxLength` parameters
@@ -108,6 +163,9 @@ This fork adds the following enhancements to original mcp-searxng project:
     - **Timeout Control**: Control request timeout using the `timeoutMs` parameter to prevent long-running requests
     - **robots.txt Checking**: If enabled, checks target website's robots.txt rules before fetching
     - **Intelligent Caching**: URL content is cached with TTL to improve performance and reduce redundant requests
+  - **Notes**:
+    - Does NOT support `urls` batch parameter
+    - For parallel URL reading, initiate multiple independent tool calls simultaneously
 
 ## Configuration
 
@@ -128,7 +186,9 @@ This fork adds the following enhancements to original mcp-searxng project:
 - **`ENABLE_ROBOTS_TXT`**: Enable robots.txt checking (default: `false`)
 
 #### Embedding Configuration (Ollama Integration)
-- **`ENABLE_EMBEDDING`**: Enable semantic embedding feature (default: `true`)
+- **`ENABLE_EMBEDDING`**: Enable hybrid retrieval feature (default: `true`)
+  - When enabled: Both BM25 (sparse) and Dense retrieval are activated
+  - When disabled: Only SearXNG original search results are used
 - **`OLLAMA_HOST`**: Ollama server URL (default: `http://localhost:11434`)
 - **`EMBEDDING_MODEL`**: Embedding model name (default: `nomic-embed-text`)
 - **`TOP_K`**: Number of top similar results to return based on embedding similarity (default: `3`)

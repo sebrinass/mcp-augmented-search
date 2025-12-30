@@ -8,6 +8,7 @@ import { urlCache } from "./cache.js";
 import { incrementUrlReadRound, recordUrlRead, getUrlReadContext, getCacheHint, getDetailedCacheHint, cacheUrlContent } from "./session-tracker.js";
 import { loadConfig } from "./config.js";
 import { isUrlAllowed } from "./robots.js";
+import puppeteer from "puppeteer-core";
 import {
   createURLFormatError,
   createNetworkError,
@@ -26,6 +27,77 @@ interface PaginationOptions {
   section?: string;
   paragraphRange?: string;
   readHeadings?: boolean;
+}
+
+let browser: any = null;
+
+async function getBrowser(): Promise<any> {
+  if (!browser) {
+    const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || 
+      process.platform === 'linux' ? '/usr/bin/chromium-browser' : 
+      process.platform === 'darwin' ? '/Applications/Chromium.app/Contents/MacOS/Chromium' : 
+      'C:\\Program Files\\Chromium\\Application\\chrome.exe';
+    
+    browser = await puppeteer.launch({
+      executablePath: chromiumPath,
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+  }
+  return browser;
+}
+
+async function closeBrowser(): Promise<void> {
+  if (browser) {
+    await browser.close();
+    browser = null;
+  }
+}
+
+async function fetchWithPuppeteer(
+  url: string,
+  timeoutMs: number,
+  paginationOptions: PaginationOptions = {}
+): Promise<string> {
+  const startTime = Date.now();
+  const b = await getBrowser();
+  
+  try {
+    const page = await b.newPage();
+    
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    );
+    
+    await page.goto(url, {
+      waitUntil: 'networkidle2',
+      timeout: timeoutMs
+    });
+    
+    let content = await page.content();
+    
+    if (paginationOptions.startChar || paginationOptions.maxLength) {
+      content = applyCharacterPagination(content, paginationOptions.startChar, paginationOptions.maxLength);
+    }
+    
+    await page.close();
+    
+    const dom = new JSDOM(content);
+    const reader = new Readability(dom.window.document);
+    const article = reader.parse();
+    
+    if (article && article.content) {
+      content = NodeHtmlMarkdown.translate(article.content);
+    }
+    
+    const duration = Date.now() - startTime;
+    console.log(`Puppeteer fetch completed: ${url} (${content.length} chars in ${duration}ms)`);
+    
+    return content;
+  } catch (error: any) {
+    console.error(`Puppeteer fetch failed: ${error.message}`);
+    throw error;
+  }
 }
 
 function applyCharacterPagination(content: string, startChar: number = 0, maxLength?: number): string {
@@ -250,108 +322,147 @@ export async function fetchAndConvertToMarkdown(
       (requestOptions as any).dispatcher = proxyAgent;
     }
 
-    let response: Response;
+    let response: Response | null = null;
+    let usePuppeteer = false;
+    
     try {
       // Fetch the URL with the abort signal
       response = await fetch(resolvedUrl, requestOptions);
     } catch (error: any) {
-      const context: ErrorContext = {
-        url: resolvedUrl,
-        proxyAgent: !!proxyAgent,
-        timeout: timeoutMs
-      };
-      throw createNetworkError(error, context);
+      logMessage(server, "warning", `Fetch failed: ${error.message}, falling back to Puppeteer`);
+      usePuppeteer = true;
     }
 
-    if (!response.ok) {
-      let responseBody: string;
+    if (!usePuppeteer && response) {
+      if (!response.ok) {
+        let responseBody: string;
+        try {
+          responseBody = await response.text();
+        } catch {
+          responseBody = '[Could not read response body]';
+        }
+
+        const context: ErrorContext = { url: resolvedUrl };
+        throw createServerError(response.status, response.statusText, responseBody, context);
+      }
+
+      // Retrieve HTML content
+      let htmlContent: string;
       try {
-        responseBody = await response.text();
-      } catch {
-        responseBody = '[Could not read response body]';
+        htmlContent = await response.text();
+      } catch (error: any) {
+        throw createContentError(
+          `Failed to read website content: ${error.message || 'Unknown error reading content'}`,
+          resolvedUrl
+        );
       }
 
-      const context: ErrorContext = { url: resolvedUrl };
-      throw createServerError(response.status, response.statusText, responseBody, context);
-    }
-
-    // Retrieve HTML content
-    let htmlContent: string;
-    try {
-      htmlContent = await response.text();
-    } catch (error: any) {
-      throw createContentError(
-        `Failed to read website content: ${error.message || 'Unknown error reading content'}`,
-        resolvedUrl
-      );
-    }
-
-    if (!htmlContent || htmlContent.trim().length === 0) {
-      throw createContentError("Website returned empty content.", resolvedUrl);
-    }
-
-    // Extract main content using Readability
-    let extractedHtmlContent: string;
-    try {
-      const dom = new JSDOM(htmlContent);
-      const reader = new Readability(dom.window.document);
-      const article = reader.parse();
-      
-      if (article && article.content) {
-        extractedHtmlContent = article.content;
-        logMessage(server, "info", `Successfully extracted main content from: ${resolvedUrl}`);
-      } else {
-        logMessage(server, "warning", `Readability failed to extract content from: ${resolvedUrl}, using full HTML`);
-        extractedHtmlContent = htmlContent;
+      if (!htmlContent || htmlContent.trim().length === 0) {
+        logMessage(server, "warning", `Empty HTML content: ${resolvedUrl}, falling back to Puppeteer`);
+        usePuppeteer = true;
       }
-    } catch (error: any) {
-      logMessage(server, "warning", `Readability extraction failed: ${error.message}, using full HTML`);
-      extractedHtmlContent = htmlContent;
+
+      if (!usePuppeteer) {
+        // Extract main content using Readability
+        let extractedHtmlContent: string;
+        try {
+          const dom = new JSDOM(htmlContent);
+          const reader = new Readability(dom.window.document);
+          const article = reader.parse();
+          
+          if (article && article.content) {
+            extractedHtmlContent = article.content;
+            logMessage(server, "info", `Successfully extracted main content from: ${resolvedUrl}`);
+          } else {
+            logMessage(server, "warning", `Readability failed to extract content from: ${resolvedUrl}, using full HTML`);
+            extractedHtmlContent = htmlContent;
+          }
+        } catch (error: any) {
+          logMessage(server, "warning", `Readability extraction failed: ${error.message}, using full HTML`);
+          extractedHtmlContent = htmlContent;
+        }
+
+        // Convert HTML to Markdown
+        let markdownContent: string;
+        try {
+          markdownContent = NodeHtmlMarkdown.translate(extractedHtmlContent);
+        } catch (error: any) {
+          logMessage(server, "warning", `Failed to convert HTML to Markdown, returning raw HTML: ${error.message}`);
+          // Return raw HTML as fallback
+          markdownContent = extractedHtmlContent;
+        }
+
+        if (!markdownContent || markdownContent.trim().length === 0) {
+          logMessage(server, "warning", `Empty content after conversion: ${resolvedUrl}, falling back to Puppeteer`);
+          usePuppeteer = true;
+        }
+
+        if (!usePuppeteer) {
+          // Only cache successful markdown conversion
+          urlCache.set(resolvedUrl, htmlContent, markdownContent);
+          
+          cacheUrlContent(resolvedUrl, markdownContent);
+
+          // Apply pagination options
+          const result = applyPaginationOptions(markdownContent, paginationOptions);
+
+          const duration = Date.now() - startTime;
+          logMessage(server, "info", `Successfully fetched and converted URL: ${url} (${result.length} chars in ${duration}ms)`);
+          
+          recordUrlRead(sessionId, resolvedUrl);
+          
+          const readContext = getUrlReadContext(sessionId);
+          const cacheHint = getDetailedCacheHint(sessionId, resolvedUrl);
+          const contextMarker = [readContext, cacheHint].filter(Boolean).join('\n\n');
+          
+          let finalResult = result;
+          
+          // Add continuation hint if content was truncated
+          if (paginationOptions.maxLength && markdownContent.length > paginationOptions.maxLength) {
+            const remaining = markdownContent.length - paginationOptions.maxLength;
+            const nextStart = (paginationOptions.startChar || 0) + paginationOptions.maxLength;
+            finalResult += `\n\n⏭️ 内容已截断，剩余 ${remaining} 字符。如需继续读取，请使用 start_index=${nextStart} 参数。`;
+          }
+          
+          return `${contextMarker}\n\n📄 【新页面内容】${resolvedUrl} (${finalResult.length}字符, ${duration}ms)\n\n${finalResult}`;
+        }
+      }
     }
 
-    // Convert HTML to Markdown
-    let markdownContent: string;
-    try {
-      markdownContent = NodeHtmlMarkdown.translate(extractedHtmlContent);
-    } catch (error: any) {
-      logMessage(server, "warning", `Failed to convert HTML to Markdown, returning raw HTML: ${error.message}`);
-      // Return raw HTML as fallback
-      markdownContent = extractedHtmlContent;
+    // Fallback to Puppeteer
+    if (usePuppeteer) {
+      try {
+        const puppeteerContent = await fetchWithPuppeteer(resolvedUrl, fetchTimeout, paginationOptions);
+        
+        urlCache.set(resolvedUrl, '', puppeteerContent);
+        cacheUrlContent(resolvedUrl, puppeteerContent);
+        
+        const duration = Date.now() - startTime;
+        logMessage(server, "info", `Successfully fetched with Puppeteer: ${url} (${puppeteerContent.length} chars in ${duration}ms)`);
+        
+        recordUrlRead(sessionId, resolvedUrl);
+        
+        const readContext = getUrlReadContext(sessionId);
+        const cacheHint = getDetailedCacheHint(sessionId, resolvedUrl);
+        const contextMarker = [readContext, cacheHint].filter(Boolean).join('\n\n');
+        
+        let finalResult = puppeteerContent;
+        
+        if (paginationOptions.maxLength && puppeteerContent.length > paginationOptions.maxLength) {
+          const remaining = puppeteerContent.length - paginationOptions.maxLength;
+          const nextStart = (paginationOptions.startChar || 0) + paginationOptions.maxLength;
+          finalResult += `\n\n⏭️ 内容已截断，剩余 ${remaining} 字符。如需继续读取，请使用 start_index=${nextStart} 参数。`;
+        }
+        
+        return `${contextMarker}\n\n🌐 【浏览器渲染】${resolvedUrl} (${finalResult.length}字符, ${duration}ms)\n\n${finalResult}`;
+      } catch (error: any) {
+        logMessage(server, "error", `Puppeteer fallback failed: ${error.message}`);
+        throw createContentError(
+          `Both fetch and Puppeteer failed: ${error.message}`,
+          resolvedUrl
+        );
+      }
     }
-
-    if (!markdownContent || markdownContent.trim().length === 0) {
-      logMessage(server, "warning", `Empty content after conversion: ${resolvedUrl}`);
-      // DON'T cache empty/failed conversions - return warning directly
-      return createEmptyContentWarning(resolvedUrl, htmlContent.length, htmlContent);
-    }
-
-    // Only cache successful markdown conversion
-    urlCache.set(resolvedUrl, htmlContent, markdownContent);
-    
-    cacheUrlContent(resolvedUrl, markdownContent);
-
-    // Apply pagination options
-    const result = applyPaginationOptions(markdownContent, paginationOptions);
-
-    const duration = Date.now() - startTime;
-    logMessage(server, "info", `Successfully fetched and converted URL: ${url} (${result.length} chars in ${duration}ms)`);
-    
-    recordUrlRead(sessionId, resolvedUrl);
-    
-    const readContext = getUrlReadContext(sessionId);
-    const cacheHint = getDetailedCacheHint(sessionId, resolvedUrl);
-    const contextMarker = [readContext, cacheHint].filter(Boolean).join('\n\n');
-    
-    let finalResult = result;
-    
-    // Add continuation hint if content was truncated
-    if (paginationOptions.maxLength && markdownContent.length > paginationOptions.maxLength) {
-      const remaining = markdownContent.length - paginationOptions.maxLength;
-      const nextStart = (paginationOptions.startChar || 0) + paginationOptions.maxLength;
-      finalResult += `\n\n⏭️ 内容已截断，剩余 ${remaining} 字符。如需继续读取，请使用 start_index=${nextStart} 参数。`;
-    }
-    
-    return `${contextMarker}\n\n📄 【新页面内容】${resolvedUrl} (${finalResult.length}字符, ${duration}ms)\n\n${finalResult}`;
   } catch (error: any) {
     if (error.name === "AbortError") {
       logMessage(server, "error", `Timeout fetching URL: ${resolvedUrl} (${fetchTimeout}ms)`);
@@ -397,10 +508,11 @@ export async function fetchAndConvertToMarkdownBatch(
       const content = await fetchAndConvertToMarkdown(server, url, timeoutMs, paginationOptions, sessionId);
       results.push({ url, content });
     } catch (error: any) {
+      const errorMessage = error?.message as string | undefined;
       results.push({
         url,
         content: "",
-        error: error.message || "Unknown error"
+        error: errorMessage ?? "Unknown error"
       });
     }
   });

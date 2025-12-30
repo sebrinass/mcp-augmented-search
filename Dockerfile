@@ -8,7 +8,15 @@ RUN --mount=type=cache,target=/root/.npm npm run bootstrap
 
 FROM node:lts-alpine AS release
 
-RUN apk update && apk upgrade
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
 
 WORKDIR /app
 
@@ -17,6 +25,8 @@ COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/package-lock.json /app/package-lock.json
 
 ENV NODE_ENV=production
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 RUN npm ci --ignore-scripts --omit-dev
 

@@ -95,11 +95,11 @@ const server = new Server(
       logging: {},
       resources: {},
       tools: {
-        searxng_web_search: {
+        search: {
           description: WEB_SEARCH_TOOL.description,
           schema: WEB_SEARCH_TOOL.inputSchema,
         },
-        web_url_read: {
+        read: {
           description: READ_URL_TOOL.description,
           schema: READ_URL_TOOL.inputSchema,
         },
@@ -125,7 +125,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   logMessage(server, "debug", `Handling call_tool request: ${name} (session: ${sessionId})`);
 
   try {
-    if (name === "searxng_web_search") {
+    if (name === "search") {
       if (!isSearXNGWebSearchArgs(args)) {
         throw new Error("Invalid arguments for web search");
       }
@@ -148,7 +148,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
-    } else if (name === "web_url_read") {
+    } else if (name === "read") {
       if (!isWebUrlReadArgs(args)) {
         throw new Error("Invalid arguments for URL reading");
       }
@@ -166,10 +166,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (args.urls && Array.isArray(args.urls) && args.urls.length > 0) {
         logMessage(server, "info", `Batch URL reading: ${args.urls.length} URLs`);
         result = await fetchAndConvertToMarkdownBatch(server, args.urls, args.timeoutMs, paginationOptions, sessionId);
-      } else if (args.url) {
-        result = await fetchAndConvertToMarkdown(server, args.url, args.timeoutMs, paginationOptions, sessionId);
       } else {
-        throw new Error("Either 'url' or 'urls' parameter must be provided");
+        if (!args.url) {
+          throw new Error("Either 'url' or 'urls' parameter must be provided");
+        }
+        result = await fetchAndConvertToMarkdown(server, args.url!, args.timeoutMs, paginationOptions, sessionId);
       }
 
       return {

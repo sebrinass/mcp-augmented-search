@@ -17,6 +17,7 @@ import { getCachedSearch, setCachedSearch, getCacheStats, isSearchDuplicate, get
 import { incrementSearchRound, recordSearch, getSearchContext, getCacheHint, getDetailedCacheHint, cacheSearchResults } from "./session-tracker.js";
 
 export interface SearchResult {
+  id: string;
   title: string;
   content: string;
   url: string;
@@ -227,7 +228,8 @@ export async function performWebSearch(
     throw createDataError(data, context);
   }
 
-  const results = data.results.map((result) => ({
+  const results = data.results.map((result, i) => ({
+    id: `result_${i}`,
     title: result.title || "",
     content: result.content || "",
     url: result.url || "",
@@ -266,23 +268,18 @@ export async function performWebSearch(
 
   if (config.embedding.enabled && results.length > 0) {
     try {
-      logMessage(server, "info", `Starting embedding-based reranking for query: "${query}"`);
-      const queryEmbedding = await getEmbedding(query);
-
-      if (queryEmbedding.length > 0) {
-        const scoredResults = await rerankResults(query, results);
-        finalResults = scoredResults.map((r) => ({
-          title: r.title,
-          content: r.content,
-          url: r.url,
-          score: r.embeddingScore,
-        }));
-        logMessage(server, "info", `Embedding reranking completed: ${scoredResults.length} results ranked by similarity`);
-      } else {
-        logMessage(server, "warning", "Embedding generation failed, falling back to original results");
-      }
+      logMessage(server, "info", `Starting hybrid retrieval for query: "${query}"`);
+      const hybridResults = await rerankResults(query, results, true, 0.3, 0.7);
+      finalResults = hybridResults.map((r) => ({
+        id: r.id,
+        title: r.title,
+        content: r.content,
+        url: r.url,
+        score: r.hybridScore,
+      }));
+      logMessage(server, "info", `Hybrid retrieval completed: ${hybridResults.length} results ranked (Sparse: 30%, Dense: 70%)`);
     } catch (error: any) {
-      logMessage(server, "error", `Embedding reranking error: ${error.message}, falling back to original results`);
+      logMessage(server, "error", `Hybrid retrieval error: ${error.message}, falling back to original results`);
     }
   }
 

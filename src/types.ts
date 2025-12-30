@@ -25,7 +25,7 @@ export function isSearXNGWebSearchArgs(args: unknown): args is {
 }
 
 export const WEB_SEARCH_TOOL: Tool = {
-  name: "searxng_web_search",
+  name: "search",
   description:
     "Performs a web search using the SearXNG API, ideal for general queries, news, articles, and online content. " +
     "Use this for broad information gathering, recent events, or when you need diverse web sources.",
@@ -66,11 +66,11 @@ export const WEB_SEARCH_TOOL: Tool = {
 };
 
 export const READ_URL_TOOL: Tool = {
-  name: "web_url_read",
+  name: "read",
   description:
     "Read the content from an URL. " +
     "Use this for further information retrieving to understand the content of each URL. " +
-    "For multiple URLs, use web_url_read_batch instead.",
+    "For multiple URLs, use the urls array parameter instead.",
   inputSchema: {
     type: "object",
     properties: {

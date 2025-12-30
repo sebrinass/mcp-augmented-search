@@ -3,6 +3,7 @@ import { loadConfig } from './config.js';
 import { getCachedEmbedding, setCachedEmbedding } from './cache.js';
 
 export interface SearchResult {
+  id: string;
   title: string;
   content: string;
   url: string;
@@ -13,6 +14,16 @@ export interface ScoredResult extends SearchResult {
   embeddingScore: number;
 }
 
+export interface SparseResult extends SearchResult {
+  sparseScore: number;
+}
+
+export interface HybridResult extends SearchResult {
+  sparseScore: number;
+  denseScore: number;
+  hybridScore: number;
+}
+
 let ollamaClient: Ollama | null = null;
 
 function getOllamaClient(): Ollama {
@@ -21,6 +32,80 @@ function getOllamaClient(): Ollama {
     ollamaClient = new Ollama({ host: config.embedding.host });
   }
   return ollamaClient;
+}
+
+function tokenize(text: string): string[] {
+  if (!text) return [];
+  
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
+    .split(/\s+/)
+    .filter(token => token.length > 0);
+}
+
+function calculateTF(text: string, term: string): number {
+  const tokens = tokenize(text);
+  const termCount = tokens.filter(t => t === term).length;
+  return termCount / tokens.length;
+}
+
+function calculateIDF(documents: string[], term: string): number {
+  const docsWithTerm = documents.filter(doc => 
+    tokenize(doc).includes(term)
+  ).length;
+  
+  if (docsWithTerm === 0) return 0;
+  
+  return Math.log(documents.length / docsWithTerm);
+}
+
+function calculateBM25(query: string, document: string, documents: string[]): number {
+  const queryTerms = tokenize(query);
+  const docTerms = tokenize(document);
+  const docLength = docTerms.length;
+  
+  const avgDocLength = documents.reduce((sum, doc) => 
+    sum + tokenize(doc).length, 0
+  ) / documents.length;
+  
+  const k1 = 1.5;
+  const b = 0.75;
+  
+  let score = 0;
+  
+  for (const term of queryTerms) {
+    const tf = calculateTF(document, term);
+    const idf = calculateIDF(documents, term);
+    
+    const numerator = tf * (k1 + 1);
+    const denominator = tf + k1 * (1 - b + b * (docLength / avgDocLength));
+    
+    score += idf * (numerator / denominator);
+  }
+  
+  return score;
+}
+
+export function sparseRetrieve(
+  query: string,
+  documents: { id: string; content: string }[],
+  topK: number
+): SparseResult[] {
+  const docContents = documents.map(d => d.content);
+  
+  const results: SparseResult[] = documents.map(doc => ({
+    id: doc.id,
+    title: '',
+    content: doc.content,
+    url: '',
+    score: 0,
+    sparseScore: calculateBM25(query, doc.content, docContents)
+  }));
+  
+  return results
+    .sort((a, b) => b.sparseScore - a.sparseScore)
+    .slice(0, topK);
 }
 
 function chunkText(text: string, chunkSize: number, chunkOverlap: number): string[] {
@@ -104,35 +189,136 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (magA * magB);
 }
 
-export async function rerankResults(
+export async function hybridRetrieve(
   query: string,
-  results: SearchResult[]
-): Promise<ScoredResult[]> {
-  const config = loadConfig();
+  documents: { id: string; title: string; content: string; url: string; score: number }[],
+  topK: number,
+  sparseWeight: number = 0.3,
+  denseWeight: number = 0.7
+): Promise<HybridResult[]> {
+  const retrieveCount = Math.min(topK * 2, documents.length);
+  
+  const sparseResults = sparseRetrieve(query, documents, retrieveCount);
+  const denseResults = await denseRetrieve(query, documents, retrieveCount);
+  
+  const sparseScoreMap = new Map(sparseResults.map(r => [r.id, r.sparseScore]));
+  const denseScoreMap = new Map(denseResults.map(r => [r.id, r.denseScore]));
+  
+  const allIds = new Set([
+    ...sparseResults.map(r => r.id),
+    ...denseResults.map(r => r.id)
+  ]);
+  
+  const hybridResults: HybridResult[] = Array.from(allIds).map(id => {
+    const sparseScore = sparseScoreMap.get(id) || 0;
+    const denseScore = denseScoreMap.get(id) || 0;
+    const hybridScore = sparseWeight * sparseScore + denseWeight * denseScore;
+    
+    const doc = documents.find(d => d.id === id);
+    
+    return {
+      id: id,
+      title: doc?.title || '',
+      content: doc?.content || '',
+      url: doc?.url || '',
+      score: hybridScore,
+      sparseScore,
+      denseScore,
+      hybridScore
+    };
+  });
+  
+  return hybridResults
+    .sort((a, b) => b.hybridScore - a.hybridScore)
+    .slice(0, topK);
+}
 
-  if (!config.embedding.enabled || results.length <= config.embedding.topK) {
-    return results.map((r) => ({ ...r, embeddingScore: r.score }));
-  }
-
+async function denseRetrieve(
+  query: string,
+  documents: { id: string; content: string }[],
+  topK: number
+): Promise<{ id: string; denseScore: number }[]> {
   const queryEmbedding = await getEmbedding(query);
   if (queryEmbedding.length === 0) {
-    return results.map((r) => ({ ...r, embeddingScore: r.score }));
+    return documents.map(d => ({ id: d.id, denseScore: 0 }));
   }
-
+  
   const scoredResults = await Promise.all(
-    results.map(async (result) => {
-      const text = `${result.title} ${result.content}`;
-      const resultEmbedding = await getEmbedding(text);
-      const embeddingScore = cosineSimilarity(queryEmbedding, resultEmbedding);
-
+    documents.map(async (doc) => {
+      const resultEmbedding = await getEmbedding(doc.content);
+      const denseScore = cosineSimilarity(queryEmbedding, resultEmbedding);
+      
       return {
-        ...result,
-        embeddingScore,
+        id: doc.id,
+        denseScore
       };
     })
   );
-
+  
   return scoredResults
-    .sort((a, b) => b.embeddingScore - a.embeddingScore)
-    .slice(0, config.embedding.topK);
+    .sort((a, b) => b.denseScore - a.denseScore)
+    .slice(0, topK);
+}
+
+export async function rerankResults(
+  query: string,
+  results: SearchResult[],
+  useHybrid: boolean = true,
+  sparseWeight: number = 0.3,
+  denseWeight: number = 0.7
+): Promise<HybridResult[]> {
+  const config = loadConfig();
+
+  if (!config.embedding.enabled || results.length <= config.embedding.topK) {
+    return results.map((r, i) => ({ 
+      ...r, 
+      sparseScore: 0,
+      denseScore: r.score,
+      hybridScore: r.score 
+    }));
+  }
+
+  const documents = results.map((r, i) => ({
+    id: `result_${i}`,
+    title: r.title,
+    content: r.content,
+    url: r.url,
+    score: r.score
+  }));
+
+  if (!useHybrid) {
+    const denseResults = await denseRetrieve(query, documents, config.embedding.topK);
+    return denseResults.map(d => {
+      const doc = documents.find(doc => doc.id === d.id);
+      return {
+        id: d.id,
+        title: doc?.title || '',
+        content: doc?.content || '',
+        url: doc?.url || '',
+        score: d.denseScore,
+        sparseScore: 0,
+        denseScore: d.denseScore,
+        hybridScore: d.denseScore
+      };
+    });
+  }
+
+  const hybridResults = await hybridRetrieve(
+    query,
+    documents,
+    config.embedding.topK,
+    sparseWeight,
+    denseWeight
+  );
+
+  return hybridResults.map(h => ({
+    id: h.id,
+    title: h.title,
+    content: h.content,
+    url: h.url,
+    score: h.hybridScore,
+    sparseScore: h.sparseScore,
+    denseScore: h.denseScore,
+    hybridScore: h.hybridScore
+  }));
 }
