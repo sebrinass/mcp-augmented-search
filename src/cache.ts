@@ -1,5 +1,5 @@
 import { loadConfig } from './config.js';
-import { getEmbedding, cosineSimilarity } from './embedding.js';
+import { getEmbedding, cosineSimilarity, calculateBM25 } from './embedding.js';
 
 interface CacheEntry<T> {
   data: T;
@@ -112,7 +112,7 @@ class SessionDeduplication {
 class SemanticSearchCache {
   private semanticCache: Map<string, { query: string; embedding: number[]; results: SearchCacheEntry['results']; timestamp: number }> = new Map();
   private readonly maxEntries = 50;
-  private readonly similarityThreshold = 0.85;
+  private readonly similarityThreshold = 0.95;
   private readonly ttlMs = 30 * 60 * 1000;
 
   private getCacheKey(text: string): string {
@@ -134,6 +134,10 @@ class SemanticSearchCache {
       return null;
     }
 
+    const cachedDocuments = Array.from(this.semanticCache.entries())
+      .filter(([key, entry]) => !this.isExpired(entry.timestamp))
+      .map(([key, entry]) => entry.query);
+
     let bestMatch: { key: string; similarity: number; entry: any } | null = null;
     let bestSimilarity = this.similarityThreshold;
 
@@ -147,11 +151,13 @@ class SemanticSearchCache {
         continue;
       }
 
-      const similarity = cosineSimilarity(queryEmbedding, entry.embedding);
+      const bm25Score = calculateBM25(query, entry.query, cachedDocuments);
+      const embeddingScore = cosineSimilarity(queryEmbedding, entry.embedding);
+      const hybridScore = 0.7 * bm25Score + 0.3 * embeddingScore;
 
-      if (similarity > bestSimilarity) {
-        bestSimilarity = similarity;
-        bestMatch = { key, similarity, entry };
+      if (hybridScore > bestSimilarity) {
+        bestSimilarity = hybridScore;
+        bestMatch = { key, similarity: hybridScore, entry };
       }
     }
 

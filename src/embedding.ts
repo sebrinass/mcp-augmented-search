@@ -60,7 +60,7 @@ function calculateIDF(documents: string[], term: string): number {
   return Math.log(documents.length / docsWithTerm);
 }
 
-function calculateBM25(query: string, document: string, documents: string[]): number {
+export function calculateBM25(query: string, document: string, documents: string[]): number {
   const queryTerms = tokenize(query);
   const docTerms = tokenize(document);
   const docLength = docTerms.length;

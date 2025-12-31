@@ -60,7 +60,7 @@ export function loadConfig(): Config {
     httpsProxy: getEnv('HTTPS_PROXY'),
     noProxy: getEnv('NO_PROXY'),
     embedding: {
-      enabled: getEnvBoolean('ENABLE_EMBEDDING', true),
+      enabled: getEnvBoolean('ENABLE_EMBEDDING', false),
       host: getEnv('OLLAMA_HOST', 'http://localhost:11434') || 'http://localhost:11434',
       model: getEnv('EMBEDDING_MODEL', 'nomic-embed-text') || 'nomic-embed-text',
       topK: getEnvNumber('TOP_K', 3),
@@ -68,11 +68,11 @@ export function loadConfig(): Config {
       chunkOverlap: getEnvNumber('CHUNK_OVERLAP', 100),
     },
     cache: {
-      enabled: getEnvBoolean('ENABLE_CACHE', true),
+      enabled: getEnvBoolean('ENABLE_CACHE', false),
       ttl: getEnvNumber('CACHE_TTL', 300),
       maxSize: getEnvNumber('CACHE_MAX_SIZE', 1000),
-      searchEnabled: getEnvBoolean('CACHE_SEARCH', true),
-      embeddingEnabled: getEnvBoolean('CACHE_EMBEDDING', true),
+      searchEnabled: getEnvBoolean('CACHE_SEARCH', false),
+      embeddingEnabled: getEnvBoolean('CACHE_EMBEDDING', false),
     },
     fetch: {
       timeoutMs: getEnvNumber('FETCH_TIMEOUT_MS', 30000),
