@@ -200,8 +200,9 @@ For detailed configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
 **Required:**
 - `SEARXNG_URL`: Your SearXNG instance URL
 
-**Optional (Recommended):**
-- `ENABLE_EMBEDDING`: Enable hybrid retrieval (default: `true`)
+**Optional:**
+- `ENABLE_EMBEDDING`: Enable hybrid retrieval (default: `false`)
+- `ENABLE_CACHE`: Enable caching (default: `false`)
 - `OLLAMA_HOST`: Ollama server URL (default: `http://localhost:11434`)
 - `EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
 
