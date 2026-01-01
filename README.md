@@ -32,7 +32,7 @@ Thanks to [ihor-sokoliuk](https://github.com/ihor-sokoliuk) for the excellent or
 - **Safe Search**: Control content filtering level
 
 ### 📄 Advanced Content Reading
-- **Auto Fallback**: When fetch fails, automatically uses Puppeteer to render JavaScript
+- **Auto Fallback**: When fetch fails, automatically uses Puppeteer (optional) to render JavaScript
 - **Content Extraction**: Mozilla Readability extracts main content, removes noise
 - **Chunk Reading**: Read large documents in parts to save tokens
 - **HTML to Markdown**: Automatic conversion for better readability
@@ -59,7 +59,7 @@ Thanks to [ihor-sokoliuk](https://github.com/ihor-sokoliuk) for the excellent or
 
 ### `search` (formerly `searxng_web_search`)
 
-Execute web searches with intelligent caching and semantic reranking.
+Use SearXNG to search
 
 **Parameters:**
 - `query` (string, required): Search query
@@ -86,7 +86,7 @@ Execute web searches with intelligent caching and semantic reranking.
 
 ### `read` (formerly `web_url_read`)
 
-Read and convert URL content to Markdown with advanced extraction.
+Read URL content
 
 **Parameters:**
 - `url` (string, required): URL to read
@@ -116,7 +116,7 @@ Read and convert URL content to Markdown with advanced extraction.
 
 ### `research`
 
-Perform deep research through structured thinking steps.
+Guide search planning steps
 
 **Parameters:**
 - `thought` (string, required): Current thinking step
@@ -144,8 +144,6 @@ Perform deep research through structured thinking steps.
   "totalThoughts": 5
 }
 ```
-
-**Note:** Requires `ENABLE_RESEARCH_FRAMEWORK=true` environment variable.
 
 ## Installation
 
@@ -186,6 +184,17 @@ npm install -g mcp-searxng
 
 ### Docker
 
+**Without Puppeteer (Recommended, Smaller Image):**
+```bash
+docker build -t mcp-searxng:latest .
+```
+
+**With Puppeteer (For JavaScript Rendering):**
+```bash
+docker build --build-arg ENABLE_PUPPETEER=true -t mcp-searxng:latest-puppeteer .
+```
+
+**Using Pre-built Image:**
 ```bash
 docker pull isokoliuk/mcp-searxng:latest
 ```
@@ -242,7 +251,6 @@ For detailed configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
 **Optional:**
 - `ENABLE_EMBEDDING`: Enable hybrid retrieval (default: `false`)
 - `ENABLE_CACHE`: Enable caching (default: `false`)
-- `ENABLE_RESEARCH_FRAMEWORK`: Enable research tool (default: `false`)
 - `OLLAMA_HOST`: Ollama server URL (default: `http://localhost:11434`)
 - `EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
 
@@ -320,24 +328,13 @@ npm run test:coverage      # Generate coverage report
 npm run inspector          # Test with MCP inspector
 ```
 
-## Version History
-
-- **v0.8.0+7** (2025-12-30): Hybrid retrieval, Puppeteer auto-fallback, simplified tool names
-- **v0.8.0+6** (2025-12-29): Session isolation, global cache
-- **v0.8.0+5** (2025-12-29): robots.txt checking
-- **v0.8.0+4** (2025-12-29): Fetch features (timeout, User-Agent, content extraction)
-- **v0.8.0+1** (2025-12-29): Initial fork with semantic embedding
-
-See [HANDOVER.md](./HANDOVER.md) for detailed version history.
-
-## License
-
-MIT License - See [LICENSE](./LICENSE) file for details.
-
 ## Links
 
+- [Upstream Repository](https://github.com/ihor-sokoliuk/mcp-searxng)
+- [MCP Fetch](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch)
+- [Jina AI Reader](https://github.com/jina-ai/reader)
+- [MCP Sequential Thinking](https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking)
 - [SearXNG Documentation](https://docs.searxng.org)
 - [MCP Protocol](https://modelcontextprotocol.io/introduction)
 - [Ollama Documentation](https://ollama.com)
 - [Detailed Configuration](./CONFIGURATION.md)
-- [Project Handover](./HANDOVER.md)

@@ -24,7 +24,7 @@
 
 - **混合检索**：BM25 + 语义嵌入，提升结果质量
 - **语义缓存**：0.95 相似度阈值，减少重复查询
-- **自动渲染**：Puppeteer 降级处理 JavaScript 页面
+- **自动渲染**：Puppeteer（可选）降级处理 JavaScript 页面
 - **内容提取**：Mozilla Readability 去除噪声
 - **会话隔离**：每个对话独立缓存
 - **研究框架**：结构化思考步骤，支持深度分析
@@ -33,7 +33,7 @@
 
 ### `search`
 
-网络搜索，支持智能缓存和语义重排序。
+使用 SearXNG 搜索
 
 **参数：**
 - `query`（字符串，必填）：搜索查询
@@ -53,7 +53,7 @@
 
 ### `read`
 
-读取 URL 内容并转换为 Markdown。
+读取 URL 的内容
 
 **参数：**
 - `url`（字符串，必填）：要读取的 URL
@@ -63,7 +63,7 @@
 - `timeoutMs`（数字，可选）：请求超时时间（毫秒，默认：30000）
 
 **功能：**
-- 自动 Puppeteer 降级渲染 JavaScript
+- 自动 Puppeteer（可选）降级渲染 JavaScript
 - 内容提取去除导航和广告
 - robots.txt 合规（可选）
 
@@ -78,7 +78,7 @@
 
 ### `research`
 
-通过结构化思考步骤进行问题解答
+引导规划搜索步骤
 
 **参数：**
 - `thought`（字符串，必填）：当前思考步骤
@@ -100,8 +100,6 @@
   "totalThoughts": 5
 }
 ```
-
-**注意：** 需要设置 `ENABLE_RESEARCH_FRAMEWORK=true` 环境变量。
 
 ## 安装
 
@@ -142,6 +140,17 @@ npm install -g mcp-searxng
 
 ### Docker
 
+**不安装 Puppeteer（推荐，镜像更小）：**
+```bash
+docker build -t mcp-searxng:latest .
+```
+
+**安装 Puppeteer（用于 JavaScript 渲染）：**
+```bash
+docker build --build-arg ENABLE_PUPPETEER=true -t mcp-searxng:latest-puppeteer .
+```
+
+**使用预构建镜像：**
 ```bash
 docker pull ghcr.io/sebrinass/mcp-searxng:latest
 ```
@@ -172,7 +181,6 @@ docker pull ghcr.io/sebrinass/mcp-searxng:latest
 **可选：**
 - `ENABLE_EMBEDDING`：启用混合检索（默认：`false`）
 - `ENABLE_CACHE`：启用缓存（默认：`false`）
-- `ENABLE_RESEARCH_FRAMEWORK`：启用研究工具（默认：`false`）
 - `OLLAMA_HOST`：Ollama 服务器 URL（默认：`http://localhost:11434`）
 - `EMBEDDING_MODEL`：嵌入模型（默认：`nomic-embed-text`）
 
@@ -193,6 +201,12 @@ MIT 许可证 - 详情请查看 [LICENSE](./LICENSE) 文件。
 
 ## 链接
 
+- [上游仓库](https://github.com/ihor-sokoliuk/mcp-searxng)
+- [MCP Fetch](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch)
+- [Jina AI Reader](https://github.com/jina-ai/reader)
+- [MCP Sequential Thinking](https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking)
 - [SearXNG 文档](https://docs.searxng.org)
 - [MCP 协议](https://modelcontextprotocol.io/introduction)
+- [Ollama 文档](https://ollama.com)
+- [详细配置](./CONFIGURATION.md)
 

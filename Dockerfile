@@ -8,15 +8,20 @@ RUN --mount=type=cache,target=/root/.npm npm run bootstrap
 
 FROM node:lts-alpine AS release
 
+ARG ENABLE_PUPPETEER=false
+
 RUN apk update && apk upgrade && \
     apk add --no-cache \
-    chromium \
     nss \
     freetype \
     freetype-dev \
     harfbuzz \
     ca-certificates \
     ttf-freefont
+
+RUN if [ "$ENABLE_PUPPETEER" = "true" ]; then \
+    apk add --no-cache chromium; \
+    fi
 
 WORKDIR /app
 
@@ -26,9 +31,13 @@ COPY --from=builder /app/package-lock.json /app/package-lock.json
 
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-RUN npm ci --ignore-scripts --omit-dev
+RUN if [ "$ENABLE_PUPPETEER" = "true" ]; then \
+    export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser; \
+    npm ci --ignore-scripts --omit-dev; \
+    else \
+    npm ci --ignore-scripts --omit-dev; \
+    fi
 
 ENV SEARXNG_URL=http://localhost:8080
 ENV MCP_HTTP_PORT=1234

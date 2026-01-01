@@ -13,6 +13,7 @@ import {
 
 // Import modularized functionality
 import { WEB_SEARCH_TOOL, READ_URL_TOOL, isSearXNGWebSearchArgs } from "./types.js";
+import { RESEARCH_TOOL, ResearchServer, ThoughtData } from "./research.js";
 import { logMessage, setLogLevel } from "./logging.js";
 import { performWebSearch } from "./search.js";
 import { fetchAndConvertToMarkdown, fetchAndConvertToMarkdownBatch } from "./url-reader.js";
@@ -103,16 +104,23 @@ const server = new Server(
           description: READ_URL_TOOL.description,
           schema: READ_URL_TOOL.inputSchema,
         },
+        research: {
+          description: RESEARCH_TOOL.description,
+          schema: RESEARCH_TOOL.inputSchema,
+        },
       },
     },
   }
 );
 
+// Initialize research server
+const researchServer = new ResearchServer();
+
 // List tools handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   logMessage(server, "debug", "Handling list_tools request");
   return {
-    tools: [WEB_SEARCH_TOOL, READ_URL_TOOL],
+    tools: [WEB_SEARCH_TOOL, READ_URL_TOOL, RESEARCH_TOOL],
   };
 });
 
@@ -181,6 +189,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+    } else if (name === "research") {
+      const result = researchServer.processThought(args as unknown as ThoughtData);
+      
+      if (result.isError) {
+        throw new Error("Research tool execution failed");
+      }
+      
+      return result;
     } else {
       throw new Error(`Unknown tool: ${name}`);
     }

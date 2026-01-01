@@ -8,7 +8,6 @@ import { urlCache } from "./cache.js";
 import { incrementUrlReadRound, recordUrlRead, getUrlReadContext, getCacheHint, getDetailedCacheHint, cacheUrlContent } from "./session-tracker.js";
 import { loadConfig } from "./config.js";
 import { isUrlAllowed } from "./robots.js";
-import puppeteer from "puppeteer-core";
 import {
   createURLFormatError,
   createNetworkError,
@@ -21,6 +20,14 @@ import {
   type ErrorContext
 } from "./error-handler.js";
 
+let puppeteer: any = null;
+
+try {
+  puppeteer = require('puppeteer-core');
+} catch (e) {
+  console.log('Puppeteer not installed. Browser rendering disabled.');
+}
+
 interface PaginationOptions {
   startChar?: number;
   maxLength?: number;
@@ -32,6 +39,10 @@ interface PaginationOptions {
 let browser: any = null;
 
 async function getBrowser(): Promise<any> {
+  if (!puppeteer) {
+    throw new Error('Puppeteer not installed. Browser rendering disabled.');
+  }
+  
   if (!browser) {
     const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || 
       process.platform === 'linux' ? '/usr/bin/chromium-browser' : 
@@ -430,7 +441,7 @@ export async function fetchAndConvertToMarkdown(
     }
 
     // Fallback to Puppeteer
-    if (usePuppeteer) {
+    if (usePuppeteer && puppeteer) {
       try {
         const puppeteerContent = await fetchWithPuppeteer(resolvedUrl, fetchTimeout, paginationOptions);
         
