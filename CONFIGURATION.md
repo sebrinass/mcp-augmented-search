@@ -27,7 +27,8 @@ Complete configuration reference for MCP-SearXNG server.
 | | `NO_PROXY` | No | - |
 | **Auth** | `AUTH_USERNAME` | No | - |
 | | `AUTH_PASSWORD` | No | - |
-| **Features** | `ENABLE_ROBOTS_TXT` | No | `false` |
+| **Features** | `ENABLE_RESEARCH_FRAMEWORK` | No | `false` |
+| | `ENABLE_ROBOTS_TXT` | No | `false` |
 | **HTTP** | `MCP_HTTP_PORT` | No | - |
 | **Puppeteer** | `PUPPETEER_EXECUTABLE_PATH` | No | - |
 
@@ -406,6 +407,30 @@ CACHE_EMBEDDING=false  # Don't cache embeddings (default)
 
 ## Feature Configuration
 
+### ENABLE_RESEARCH_FRAMEWORK
+
+**Required:** No
+
+**Default:** `false`
+
+**Description:** Enable the research tool for structured thinking and deep analysis.
+
+**Values:**
+- `true` - Enable research tool
+- `false` - Disable research tool (default)
+
+**Examples:**
+```bash
+ENABLE_RESEARCH_FRAMEWORK=true   # Enable research tool
+ENABLE_RESEARCH_FRAMEWORK=false  # Disable research tool (default)
+```
+
+**Notes:**
+- Research tool guides models through structured thinking steps
+- Helps with complex multi-step research tasks
+- Works with search and read tools for information gathering
+- Requires ENABLE_EMBEDDING=true for best results
+
 ### ENABLE_ROBOTS_TXT
 
 **Required:** No
@@ -541,6 +566,7 @@ CACHE_SEARCH=true
 CACHE_EMBEDDING=true
 
 # Features
+ENABLE_RESEARCH_FRAMEWORK=true
 ENABLE_ROBOTS_TXT=false
 
 # HTTP Transport

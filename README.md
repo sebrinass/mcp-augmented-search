@@ -49,6 +49,12 @@ Thanks to [ihor-sokoliuk](https://github.com/ihor-sokoliuk) for the excellent or
 - Per-domain caching (24h TTL)
 - Graceful fallback on errors
 
+### 🧪 Research Framework
+- **Structured Thinking**: Guides models through step-by-step analysis
+- **Multi-Step Research**: Breaks complex tasks into manageable steps
+- **Tool Integration**: Works with search and read for information gathering
+- **Flexible Workflow**: Supports revisions and branching of thought processes
+
 ## Tools
 
 ### `search` (formerly `searxng_web_search`)
@@ -107,6 +113,39 @@ Read and convert URL content to Markdown with advanced extraction.
   "section": "Introduction"
 }
 ```
+
+### `research`
+
+Perform deep research through structured thinking steps.
+
+**Parameters:**
+- `thought` (string, required): Current thinking step
+- `nextThoughtNeeded` (boolean, required): Whether another thought step is needed
+- `thoughtNumber` (number, required): Current thought number
+- `totalThoughts` (number, required): Estimated total thoughts needed
+- `isRevision` (boolean, optional): Whether revising previous thought
+- `revisesThought` (number, optional): Which thought step to revise
+- `branchFromThought` (number, optional): Branch starting point
+- `branchId` (string, optional): Branch identifier
+- `needsMoreThoughts` (boolean, optional): Whether more thoughts needed
+
+**Features:**
+- **Structured Thinking**: Guides models through step-by-step analysis
+- **Multi-Step Research**: Breaks complex tasks into manageable steps
+- **Tool Integration**: Works with search and read for information gathering
+- **Flexible Workflow**: Supports revisions and branching
+
+**Example:**
+```json
+{
+  "thought": "Research quantum computing applications in AI",
+  "nextThoughtNeeded": true,
+  "thoughtNumber": 1,
+  "totalThoughts": 5
+}
+```
+
+**Note:** Requires `ENABLE_RESEARCH_FRAMEWORK=true` environment variable.
 
 ## Installation
 
@@ -203,6 +242,7 @@ For detailed configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
 **Optional:**
 - `ENABLE_EMBEDDING`: Enable hybrid retrieval (default: `false`)
 - `ENABLE_CACHE`: Enable caching (default: `false`)
+- `ENABLE_RESEARCH_FRAMEWORK`: Enable research tool (default: `false`)
 - `OLLAMA_HOST`: Ollama server URL (default: `http://localhost:11434`)
 - `EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
 

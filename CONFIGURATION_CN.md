@@ -27,7 +27,8 @@ MCP-SearXNG 服务器的完整配置参考。
 | | `NO_PROXY` | 否 | - |
 | **认证** | `AUTH_USERNAME` | 否 | - |
 | | `AUTH_PASSWORD` | 否 | - |
-| **功能** | `ENABLE_ROBOTS_TXT` | 否 | `false` |
+| **功能** | `ENABLE_RESEARCH_FRAMEWORK` | 否 | `false` |
+| | `ENABLE_ROBOTS_TXT` | 否 | `false` |
 | **HTTP** | `MCP_HTTP_PORT` | 否 | - |
 | **Puppeteer** | `PUPPETEER_EXECUTABLE_PATH` | 否 | - |
 
@@ -406,6 +407,30 @@ CACHE_EMBEDDING=false  # 不缓存嵌入
 
 ## 功能配置
 
+### ENABLE_RESEARCH_FRAMEWORK
+
+**必填：** 否
+
+**默认值：** `false`
+
+**描述：** 启用研究工具，用于结构化思考和深度分析。
+
+**值：**
+- `true` - 启用研究工具
+- `false` - 禁用研究工具（默认）
+
+**示例：**
+```bash
+ENABLE_RESEARCH_FRAMEWORK=true   # 启用研究工具
+ENABLE_RESEARCH_FRAMEWORK=false  # 禁用研究工具（默认）
+```
+
+**注意：**
+- 研究工具引导模型通过结构化思考步骤进行分析
+- 有助于复杂的多步骤研究任务
+- 与 search 和 read 工具配合进行信息收集
+- 建议配合 ENABLE_EMBEDDING=true 使用以获得最佳效果
+
 ### ENABLE_ROBOTS_TXT
 
 **必填：** 否
@@ -541,6 +566,7 @@ CACHE_SEARCH=true
 CACHE_EMBEDDING=true
 
 # 功能
+ENABLE_RESEARCH_FRAMEWORK=true
 ENABLE_ROBOTS_TXT=false
 
 # HTTP 传输
