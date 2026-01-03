@@ -13,16 +13,22 @@ MCP-SearXNG 完整配置参考。
 | | `OLLAMA_HOST` | 否 | `http://localhost:11434` |
 | | `EMBEDDING_MODEL` | 否 | `nomic-embed-text` |
 | | `TOP_K` | 否 | `3` |
+| | `CHUNK_SIZE` | 否 | `1000` |
+| | `CHUNK_OVERLAP` | 否 | `100` |
 | **缓存** | `ENABLE_CACHE` | 否 | `false` |
 | | `CACHE_TTL` | 否 | `300` |
 | | `CACHE_MAX_SIZE` | 否 | `1000` |
+| | `CACHE_SEARCH` | 否 | `false` |
+| | `CACHE_EMBEDDING` | 否 | `false` |
 | **搜索** | `MAX_KEYWORDS` | 否 | `5` |
-| | `MAX_RESULTS_PER_KEYWORD` | 否 | `5` |
 | | `MAX_DESCRIPTION_LENGTH` | 否 | `300` |
 | | `RESEARCH_SEARCH_TIMEOUT_MS` | 否 | `10000` |
-| **网络** | `FETCH_TIMEOUT` | 否 | `30000` |
+| **网络** | `FETCH_TIMEOUT_MS` | 否 | `30000` |
+| | `ENABLE_ROBOTS_TXT` | 否 | `false` |
 | | `USER_AGENT` | 否 | - |
 | | `HTTP_PROXY` | 否 | - |
+| | `HTTPS_PROXY` | 否 | - |
+| | `NO_PROXY` | 否 | - |
 | **认证** | `AUTH_USERNAME` | 否 | - |
 | | `AUTH_PASSWORD` | 否 | - |
 | **HTTP** | `MCP_HTTP_PORT` | 否 | - |
@@ -93,6 +99,28 @@ TOP_K=3   # 默认
 TOP_K=5   # 更多结果
 ```
 
+### CHUNK_SIZE
+
+**默认值：** `1000`
+
+文本分块大小（字符数）。用于将长文本分成小块进行嵌入。
+
+```bash
+CHUNK_SIZE=500
+CHUNK_SIZE=1000  # 默认
+```
+
+### CHUNK_OVERLAP
+
+**默认值：** `100`
+
+分块重叠字符数。相邻分块之间重叠的字符数，用于保持上下文连续性。
+
+```bash
+CHUNK_OVERLAP=50
+CHUNK_OVERLAP=100  # 默认
+```
+
 ---
 
 ## 缓存配置
@@ -131,6 +159,28 @@ CACHE_MAX_SIZE=500
 CACHE_MAX_SIZE=1000  # 默认
 ```
 
+### CACHE_SEARCH
+
+**默认值：** `false`
+
+是否缓存搜索结果。
+
+```bash
+CACHE_SEARCH=true   # 启用
+CACHE_SEARCH=false  # 禁用（默认）
+```
+
+### CACHE_EMBEDDING
+
+**默认值：** `false`
+
+是否缓存嵌入向量。
+
+```bash
+CACHE_EMBEDDING=true   # 启用
+CACHE_EMBEDDING=false  # 禁用（默认）
+```
+
 ---
 
 ## 搜索工具配置
@@ -144,17 +194,6 @@ CACHE_MAX_SIZE=1000  # 默认
 ```bash
 MAX_KEYWORDS=3
 MAX_KEYWORDS=5  # 默认
-```
-
-### MAX_RESULTS_PER_KEYWORD
-
-**默认值：** `5`
-
-每个关键词返回的结果数。
-
-```bash
-MAX_RESULTS_PER_KEYWORD=3
-MAX_RESULTS_PER_KEYWORD=5  # 默认
 ```
 
 ### MAX_DESCRIPTION_LENGTH
@@ -183,15 +222,26 @@ RESEARCH_SEARCH_TIMEOUT_MS=10000  # 默认
 
 ## 网络配置
 
-### FETCH_TIMEOUT
+### FETCH_TIMEOUT_MS
 
 **默认值：** `30000`（30 秒）
 
 HTTP 请求超时时间（毫秒）。
 
 ```bash
-FETCH_TIMEOUT=10000   # 10 秒
-FETCH_TIMEOUT=30000   # 30 秒（默认）
+FETCH_TIMEOUT_MS=10000   # 10 秒
+FETCH_TIMEOUT_MS=30000   # 30 秒（默认）
+```
+
+### ENABLE_ROBOTS_TXT
+
+**默认值：** `false`
+
+是否遵守 robots.txt 规则。
+
+```bash
+ENABLE_ROBOTS_TXT=true   # 启用
+ENABLE_ROBOTS_TXT=false  # 禁用（默认）
 ```
 
 ### USER_AGENT
@@ -209,6 +259,14 @@ USER_AGENT=MyBot/1.0
 ```bash
 HTTP_PROXY=http://proxy.company.com:8080
 HTTPS_PROXY=http://proxy.company.com:8080
+```
+
+### NO_PROXY
+
+不使用代理的地址列表（逗号分隔）。
+
+```bash
+NO_PROXY=localhost,127.0.0.1,.local
 ```
 
 ---
@@ -279,7 +337,6 @@ CACHE_TTL=300
 
 # 搜索
 MAX_KEYWORDS=5
-MAX_RESULTS_PER_KEYWORD=5
 ```
 
 ### Docker Compose

@@ -22,7 +22,6 @@ export interface FetchConfig {
 
 export interface ResearchConfig {
   maxKeywords: number;           // 一次最多搜几个词
-  maxResultsPerKeyword: number;  // 每个词返回几条
   maxDescriptionLength: number;  // 描述最多多少字
   searchTimeoutMs: number;       // 并发搜索超时时间
 }
@@ -88,7 +87,6 @@ export function loadConfig(): Config {
     },
     research: {
       maxKeywords: getEnvNumber('MAX_KEYWORDS', 5),
-      maxResultsPerKeyword: getEnvNumber('MAX_RESULTS_PER_KEYWORD', 5),
       maxDescriptionLength: getEnvNumber('MAX_DESCRIPTION_LENGTH', 300),
       searchTimeoutMs: getEnvNumber('RESEARCH_SEARCH_TIMEOUT_MS', 10000),
     },

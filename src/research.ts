@@ -104,7 +104,7 @@ export class ResearchServer {
   }
 
   // 执行单个关键词搜索
-  private async searchKeyword(keyword: string, sessionId: string, maxResults: number, maxDescriptionLength: number): Promise<KeywordSearchResult> {
+  private async searchKeyword(keyword: string, sessionId: string, maxDescriptionLength: number): Promise<KeywordSearchResult> {
     if (!this.server) {
       return {
         keyword,
@@ -131,15 +131,14 @@ export class ResearchServer {
         resultText.includes('【语义缓存命中】') ||
         resultText.includes('【磁盘缓存命中】');
 
-      // 解析搜索结果
-      const allResults = this.parseSearchResultText(resultText, maxDescriptionLength);
-      const limitedResults = allResults.slice(0, maxResults);
+      // 解析搜索结果（performWebSearch 已经用 TOP_K 限制了结果数量）
+      const results = this.parseSearchResultText(resultText, maxDescriptionLength);
 
       return {
         keyword,
         cached,
-        resultCount: limitedResults.length,
-        results: limitedResults
+        resultCount: results.length,
+        results
       };
     } catch (error: any) {
       logMessage(this.server, "error", `Search failed for keyword "${keyword}": ${error.message}`);
@@ -158,7 +157,6 @@ export class ResearchServer {
     keywords: string[],
     sessionId: string,
     maxKeywords: number,
-    maxResultsPerKeyword: number,
     maxDescriptionLength: number,
     timeoutMs: number
   ): Promise<KeywordSearchResult[]> {
@@ -182,7 +180,7 @@ export class ResearchServer {
         setTimeout(() => reject(new Error('搜索超时')), timeoutMs);
       });
 
-      const searchPromise = this.searchKeyword(keyword, sessionId, maxResultsPerKeyword, maxDescriptionLength);
+      const searchPromise = this.searchKeyword(keyword, sessionId, maxDescriptionLength);
 
       try {
         return await Promise.race([searchPromise, timeoutPromise]);
@@ -241,7 +239,6 @@ export class ResearchServer {
           input.searchedKeywords,
           sessionId,
           researchConfig.maxKeywords,
-          researchConfig.maxResultsPerKeyword,
           researchConfig.maxDescriptionLength,
           researchConfig.searchTimeoutMs
         );

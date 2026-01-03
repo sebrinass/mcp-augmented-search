@@ -13,16 +13,22 @@ Complete configuration reference for MCP-SearXNG.
 | | `OLLAMA_HOST` | No | `http://localhost:11434` |
 | | `EMBEDDING_MODEL` | No | `nomic-embed-text` |
 | | `TOP_K` | No | `3` |
+| | `CHUNK_SIZE` | No | `1000` |
+| | `CHUNK_OVERLAP` | No | `100` |
 | **Cache** | `ENABLE_CACHE` | No | `false` |
 | | `CACHE_TTL` | No | `300` |
 | | `CACHE_MAX_SIZE` | No | `1000` |
+| | `CACHE_SEARCH` | No | `false` |
+| | `CACHE_EMBEDDING` | No | `false` |
 | **Search** | `MAX_KEYWORDS` | No | `5` |
-| | `MAX_RESULTS_PER_KEYWORD` | No | `5` |
 | | `MAX_DESCRIPTION_LENGTH` | No | `300` |
 | | `RESEARCH_SEARCH_TIMEOUT_MS` | No | `10000` |
-| **Network** | `FETCH_TIMEOUT` | No | `30000` |
+| **Network** | `FETCH_TIMEOUT_MS` | No | `30000` |
+| | `ENABLE_ROBOTS_TXT` | No | `false` |
 | | `USER_AGENT` | No | - |
 | | `HTTP_PROXY` | No | - |
+| | `HTTPS_PROXY` | No | - |
+| | `NO_PROXY` | No | - |
 | **Auth** | `AUTH_USERNAME` | No | - |
 | | `AUTH_PASSWORD` | No | - |
 | **HTTP** | `MCP_HTTP_PORT` | No | - |
@@ -93,6 +99,28 @@ TOP_K=3   # Default
 TOP_K=5   # More results
 ```
 
+### CHUNK_SIZE
+
+**Default:** `1000`
+
+Text chunk size (in characters). Used to split long text into smaller chunks for embedding.
+
+```bash
+CHUNK_SIZE=500
+CHUNK_SIZE=1000  # Default
+```
+
+### CHUNK_OVERLAP
+
+**Default:** `100`
+
+Chunk overlap characters. Number of overlapping characters between adjacent chunks to maintain context continuity.
+
+```bash
+CHUNK_OVERLAP=50
+CHUNK_OVERLAP=100  # Default
+```
+
 ---
 
 ## Cache
@@ -131,6 +159,28 @@ CACHE_MAX_SIZE=500
 CACHE_MAX_SIZE=1000  # Default
 ```
 
+### CACHE_SEARCH
+
+**Default:** `false`
+
+Whether to cache search results.
+
+```bash
+CACHE_SEARCH=true   # Enable
+CACHE_SEARCH=false  # Disable (default)
+```
+
+### CACHE_EMBEDDING
+
+**Default:** `false`
+
+Whether to cache embedding vectors.
+
+```bash
+CACHE_EMBEDDING=true   # Enable
+CACHE_EMBEDDING=false  # Disable (default)
+```
+
 ---
 
 ## Search Tool
@@ -144,17 +194,6 @@ Maximum keywords per search call.
 ```bash
 MAX_KEYWORDS=3
 MAX_KEYWORDS=5  # Default
-```
-
-### MAX_RESULTS_PER_KEYWORD
-
-**Default:** `5`
-
-Results returned per keyword.
-
-```bash
-MAX_RESULTS_PER_KEYWORD=3
-MAX_RESULTS_PER_KEYWORD=5  # Default
 ```
 
 ### MAX_DESCRIPTION_LENGTH
@@ -183,15 +222,26 @@ RESEARCH_SEARCH_TIMEOUT_MS=10000  # Default
 
 ## Network
 
-### FETCH_TIMEOUT
+### FETCH_TIMEOUT_MS
 
 **Default:** `30000` (30 seconds)
 
 HTTP request timeout in milliseconds.
 
 ```bash
-FETCH_TIMEOUT=10000   # 10 seconds
-FETCH_TIMEOUT=30000   # 30 seconds (default)
+FETCH_TIMEOUT_MS=10000   # 10 seconds
+FETCH_TIMEOUT_MS=30000   # 30 seconds (default)
+```
+
+### ENABLE_ROBOTS_TXT
+
+**Default:** `false`
+
+Whether to respect robots.txt rules.
+
+```bash
+ENABLE_ROBOTS_TXT=true   # Enable
+ENABLE_ROBOTS_TXT=false  # Disable (default)
 ```
 
 ### USER_AGENT
@@ -209,6 +259,14 @@ Proxy server URLs.
 ```bash
 HTTP_PROXY=http://proxy.company.com:8080
 HTTPS_PROXY=http://proxy.company.com:8080
+```
+
+### NO_PROXY
+
+List of addresses to bypass proxy (comma-separated).
+
+```bash
+NO_PROXY=localhost,127.0.0.1,.local
 ```
 
 ---
@@ -279,7 +337,6 @@ CACHE_TTL=300
 
 # Search
 MAX_KEYWORDS=5
-MAX_RESULTS_PER_KEYWORD=5
 ```
 
 ### Docker Compose

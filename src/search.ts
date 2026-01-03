@@ -304,6 +304,7 @@ export async function performWebSearch(
   const contextMarker = [searchContext, cacheHint].filter(Boolean).join('\n\n');
 
   const resultsText = finalResults
+    .slice(0, config.embedding.topK)
     .map((r) => {
       let urlText = `URL: ${r.url}`;
       if (r.url.includes('sogou.com/link?url=')) {

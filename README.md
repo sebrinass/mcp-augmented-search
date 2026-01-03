@@ -158,7 +158,6 @@ npm install -g mcp-augmented-search
 | `ENABLE_CACHE` | No | `false` | Enable caching |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama server URL |
 | `MAX_KEYWORDS` | No | `5` | Max keywords per search |
-| `MAX_RESULTS_PER_KEYWORD` | No | `5` | Results per keyword |
 | `MAX_DESCRIPTION_LENGTH` | No | `300` | Max description chars |
 
 **Full configuration:** [CONFIGURATION.md](./CONFIGURATION.md)

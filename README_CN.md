@@ -158,7 +158,6 @@ npm install -g mcp-augmented-search
 | `ENABLE_CACHE` | 否 | `false` | 启用缓存 |
 | `OLLAMA_HOST` | 否 | `http://localhost:11434` | Ollama 服务器 URL |
 | `MAX_KEYWORDS` | 否 | `5` | 每次搜索最大关键词数 |
-| `MAX_RESULTS_PER_KEYWORD` | 否 | `5` | 每个关键词返回结果数 |
 | `MAX_DESCRIPTION_LENGTH` | 否 | `300` | 描述最大字符数 |
 
 **完整配置：** [CONFIGURATION_CN.md](./CONFIGURATION_CN.md)
