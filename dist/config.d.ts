@@ -18,7 +18,10 @@ export interface FetchConfig {
     enableRobotsTxt: boolean;
 }
 export interface ResearchConfig {
-    enabled: boolean;
+    maxKeywords: number;
+    maxResultsPerKeyword: number;
+    maxDescriptionLength: number;
+    searchTimeoutMs: number;
 }
 export interface Config {
     searxngUrl: string;

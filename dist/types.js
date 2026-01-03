@@ -1,47 +1,6 @@
-export function isSearXNGWebSearchArgs(args) {
-    return (typeof args === "object" &&
-        args !== null &&
-        "query" in args &&
-        typeof args.query === "string");
-}
-export const WEB_SEARCH_TOOL = {
-    name: "search",
-    description: "Web search using SearXNG API with intelligent caching and semantic reranking.",
-    inputSchema: {
-        type: "object",
-        properties: {
-            query: {
-                type: "string",
-                description: "The search query. This is the main input for the web search",
-            },
-            pageno: {
-                type: "number",
-                description: "Search page number (starts at 1)",
-                default: 1,
-            },
-            time_range: {
-                type: "string",
-                description: "Time range of search (day, month, year)",
-                enum: ["day", "month", "year"],
-            },
-            language: {
-                type: "string",
-                description: "Language code for search results (e.g., 'en', 'fr', 'de'). Default is instance-dependent.",
-                default: "all",
-            },
-            safesearch: {
-                type: "string",
-                description: "Safe search filter level (0: None, 1: Moderate, 2: Strict)",
-                enum: ["0", "1", "2"],
-                default: "0",
-            },
-        },
-        required: ["query"],
-    },
-};
 export const READ_URL_TOOL = {
     name: "read",
-    description: "Read URL content and convert to Markdown with content extraction.",
+    description: "读取 URL 的内容",
     inputSchema: {
         type: "object",
         properties: {

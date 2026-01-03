@@ -36,12 +36,22 @@ function getOllamaClient(): Ollama {
 
 function tokenize(text: string): string[] {
   if (!text) return [];
-  
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
-    .split(/\s+/)
-    .filter(token => token.length > 0);
+
+  // Remove special characters first but keep Chinese characters and alphanumeric
+  const cleanText = text.toLowerCase().replace(/[^\w\s\u4e00-\u9fa5]/g, '');
+
+  // Use Intl.Segmenter for proper word segmentation (supports Chinese & English mixed)
+  const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'word' });
+  const segments = segmenter.segment(cleanText);
+
+  const tokens: string[] = [];
+  for (const segment of segments) {
+    if (segment.isWordLike) {
+      tokens.push(segment.segment);
+    }
+  }
+
+  return tokens;
 }
 
 function calculateTF(text: string, term: string): number {
@@ -51,12 +61,12 @@ function calculateTF(text: string, term: string): number {
 }
 
 function calculateIDF(documents: string[], term: string): number {
-  const docsWithTerm = documents.filter(doc => 
+  const docsWithTerm = documents.filter(doc =>
     tokenize(doc).includes(term)
   ).length;
-  
+
   if (docsWithTerm === 0) return 0;
-  
+
   return Math.log(documents.length / docsWithTerm);
 }
 
@@ -64,26 +74,26 @@ export function calculateBM25(query: string, document: string, documents: string
   const queryTerms = tokenize(query);
   const docTerms = tokenize(document);
   const docLength = docTerms.length;
-  
-  const avgDocLength = documents.reduce((sum, doc) => 
+
+  const avgDocLength = documents.reduce((sum, doc) =>
     sum + tokenize(doc).length, 0
   ) / documents.length;
-  
+
   const k1 = 1.5;
   const b = 0.75;
-  
+
   let score = 0;
-  
+
   for (const term of queryTerms) {
     const tf = calculateTF(document, term);
     const idf = calculateIDF(documents, term);
-    
+
     const numerator = tf * (k1 + 1);
     const denominator = tf + k1 * (1 - b + b * (docLength / avgDocLength));
-    
+
     score += idf * (numerator / denominator);
   }
-  
+
   return score;
 }
 
@@ -93,7 +103,7 @@ export function sparseRetrieve(
   topK: number
 ): SparseResult[] {
   const docContents = documents.map(d => d.content);
-  
+
   const results: SparseResult[] = documents.map(doc => ({
     id: doc.id,
     title: '',
@@ -102,7 +112,7 @@ export function sparseRetrieve(
     score: 0,
     sparseScore: calculateBM25(query, doc.content, docContents)
   }));
-  
+
   return results
     .sort((a, b) => b.sparseScore - a.sparseScore)
     .slice(0, topK);
@@ -197,25 +207,25 @@ export async function hybridRetrieve(
   denseWeight: number = 0.7
 ): Promise<HybridResult[]> {
   const retrieveCount = Math.min(topK * 2, documents.length);
-  
+
   const sparseResults = sparseRetrieve(query, documents, retrieveCount);
   const denseResults = await denseRetrieve(query, documents, retrieveCount);
-  
+
   const sparseScoreMap = new Map(sparseResults.map(r => [r.id, r.sparseScore]));
   const denseScoreMap = new Map(denseResults.map(r => [r.id, r.denseScore]));
-  
+
   const allIds = new Set([
     ...sparseResults.map(r => r.id),
     ...denseResults.map(r => r.id)
   ]);
-  
+
   const hybridResults: HybridResult[] = Array.from(allIds).map(id => {
     const sparseScore = sparseScoreMap.get(id) || 0;
     const denseScore = denseScoreMap.get(id) || 0;
     const hybridScore = sparseWeight * sparseScore + denseWeight * denseScore;
-    
+
     const doc = documents.find(d => d.id === id);
-    
+
     return {
       id: id,
       title: doc?.title || '',
@@ -227,7 +237,7 @@ export async function hybridRetrieve(
       hybridScore
     };
   });
-  
+
   return hybridResults
     .sort((a, b) => b.hybridScore - a.hybridScore)
     .slice(0, topK);
@@ -242,19 +252,19 @@ async function denseRetrieve(
   if (queryEmbedding.length === 0) {
     return documents.map(d => ({ id: d.id, denseScore: 0 }));
   }
-  
+
   const scoredResults = await Promise.all(
     documents.map(async (doc) => {
       const resultEmbedding = await getEmbedding(doc.content);
       const denseScore = cosineSimilarity(queryEmbedding, resultEmbedding);
-      
+
       return {
         id: doc.id,
         denseScore
       };
     })
   );
-  
+
   return scoredResults
     .sort((a, b) => b.denseScore - a.denseScore)
     .slice(0, topK);
@@ -270,11 +280,11 @@ export async function rerankResults(
   const config = loadConfig();
 
   if (!config.embedding.enabled || results.length <= config.embedding.topK) {
-    return results.map((r, i) => ({ 
-      ...r, 
+    return results.map((r, i) => ({
+      ...r,
       sparseScore: 0,
       denseScore: r.score,
-      hybridScore: r.score 
+      hybridScore: r.score
     }));
   }
 

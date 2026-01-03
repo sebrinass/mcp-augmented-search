@@ -7,14 +7,6 @@ export interface SearXNGWeb {
         score: number;
     }>;
 }
-export declare function isSearXNGWebSearchArgs(args: unknown): args is {
-    query: string;
-    pageno?: number;
-    time_range?: string;
-    language?: string;
-    safesearch?: string;
-};
-export declare const WEB_SEARCH_TOOL: Tool;
 export declare const READ_URL_TOOL: Tool;
 export declare function isWebUrlReadArgs(args: unknown): args is {
     url?: string;

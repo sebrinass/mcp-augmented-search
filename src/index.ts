@@ -12,10 +12,9 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 // Import modularized functionality
-import { WEB_SEARCH_TOOL, READ_URL_TOOL, isSearXNGWebSearchArgs } from "./types.js";
-import { RESEARCH_TOOL, ResearchServer, ThoughtData } from "./research.js";
+import { READ_URL_TOOL } from "./types.js";
+import { SEARCH_TOOL, ResearchServer, ThoughtData } from "./research.js";
 import { logMessage, setLogLevel } from "./logging.js";
-import { performWebSearch } from "./search.js";
 import { fetchAndConvertToMarkdown, fetchAndConvertToMarkdownBatch } from "./url-reader.js";
 import { createConfigResource, createHelpResource } from "./resources.js";
 import { createHttpServer } from "./http-server.js";
@@ -96,17 +95,13 @@ const server = new Server(
       logging: {},
       resources: {},
       tools: {
-        search: {
-          description: WEB_SEARCH_TOOL.description,
-          schema: WEB_SEARCH_TOOL.inputSchema,
-        },
         read: {
           description: READ_URL_TOOL.description,
           schema: READ_URL_TOOL.inputSchema,
         },
-        research: {
-          description: RESEARCH_TOOL.description,
-          schema: RESEARCH_TOOL.inputSchema,
+        search: {
+          description: SEARCH_TOOL.description,
+          schema: SEARCH_TOOL.inputSchema,
         },
       },
     },
@@ -115,48 +110,26 @@ const server = new Server(
 
 // Initialize research server
 const researchServer = new ResearchServer();
+researchServer.setServer(server);
 
 // List tools handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   logMessage(server, "debug", "Handling list_tools request");
   return {
-    tools: [WEB_SEARCH_TOOL, READ_URL_TOOL, RESEARCH_TOOL],
+    tools: [SEARCH_TOOL, READ_URL_TOOL],
   };
 });
 
 // Call tool handler
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  
+
   const sessionId = (request as any)._meta?.sessionId || "default";
-  
+
   logMessage(server, "debug", `Handling call_tool request: ${name} (session: ${sessionId})`);
 
   try {
-    if (name === "search") {
-      if (!isSearXNGWebSearchArgs(args)) {
-        throw new Error("Invalid arguments for web search");
-      }
-
-      const result = await performWebSearch(
-        server,
-        args.query,
-        args.pageno,
-        args.time_range,
-        args.language,
-        args.safesearch,
-        sessionId
-      );
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: result,
-          },
-        ],
-      };
-    } else if (name === "read") {
+    if (name === "read") {
       if (!isWebUrlReadArgs(args)) {
         throw new Error("Invalid arguments for URL reading");
       }
@@ -189,20 +162,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
-    } else if (name === "research") {
-      const result = researchServer.processThought(args as unknown as ThoughtData);
-      
+    } else if (name === "search") {
+      // search工具现在是异步的，需要await
+      const result = await researchServer.processThought(args as unknown as ThoughtData, sessionId);
+
       if (result.isError) {
         throw new Error("Research tool execution failed");
       }
-      
+
       return result;
     } else {
       throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error) {
-    logMessage(server, "error", `Tool execution error: ${error instanceof Error ? error.message : String(error)}`, { 
-      tool: name, 
+    logMessage(server, "error", `Tool execution error: ${error instanceof Error ? error.message : String(error)}`, {
+      tool: name,
       args: args,
       error: error instanceof Error ? error.stack : String(error)
     });
@@ -293,7 +267,7 @@ async function main() {
 
     console.log(`Starting HTTP transport on port ${port}`);
     const app = await createHttpServer(server);
-    
+
     const httpServer = app.listen(port, () => {
       console.log(`HTTP server listening on port ${port}`);
       console.log(`Health check: http://localhost:${port}/health`);
@@ -320,10 +294,10 @@ async function main() {
       console.log(`🌐 SearXNG URL: ${process.env.SEARXNG_URL}`);
       console.log("📡 Waiting for MCP client connection via STDIO...\n");
     }
-    
+
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    
+
     // Log after connection is established
     logMessage(server, "info", `MCP SearXNG Server v${packageVersion} connected via STDIO`);
     logMessage(server, "info", `Log level: ${currentLogLevel}`);

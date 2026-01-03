@@ -43,7 +43,10 @@ export function loadConfig() {
             enableRobotsTxt: getEnvBoolean('ENABLE_ROBOTS_TXT', false),
         },
         research: {
-            enabled: getEnvBoolean('ENABLE_RESEARCH_FRAMEWORK', false),
+            maxKeywords: getEnvNumber('MAX_KEYWORDS', 5),
+            maxResultsPerKeyword: getEnvNumber('MAX_RESULTS_PER_KEYWORD', 5),
+            maxDescriptionLength: getEnvNumber('MAX_DESCRIPTION_LENGTH', 300),
+            searchTimeoutMs: getEnvNumber('RESEARCH_SEARCH_TIMEOUT_MS', 10000),
         },
     };
 }

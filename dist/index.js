@@ -3,15 +3,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, SetLevelRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 // Import modularized functionality
-import { WEB_SEARCH_TOOL, READ_URL_TOOL, isSearXNGWebSearchArgs } from "./types.js";
+import { READ_URL_TOOL } from "./types.js";
+import { SEARCH_TOOL, ResearchServer } from "./research.js";
 import { logMessage, setLogLevel } from "./logging.js";
-import { performWebSearch } from "./search.js";
 import { fetchAndConvertToMarkdown, fetchAndConvertToMarkdownBatch } from "./url-reader.js";
 import { createConfigResource, createHelpResource } from "./resources.js";
 import { createHttpServer } from "./http-server.js";
 import { validateEnvironment as validateEnv } from "./error-handler.js";
-import { loadConfig } from "./config.js";
-import { ResearchServer } from "./research/lib.js";
 // Use a static version string that will be updated by the version script
 const packageVersion = "0.8.0";
 // Export the version for use in other modules
@@ -66,47 +64,25 @@ const server = new Server({
         logging: {},
         resources: {},
         tools: {
-            search: {
-                description: WEB_SEARCH_TOOL.description,
-                schema: WEB_SEARCH_TOOL.inputSchema,
-            },
             read: {
                 description: READ_URL_TOOL.description,
                 schema: READ_URL_TOOL.inputSchema,
             },
+            search: {
+                description: SEARCH_TOOL.description,
+                schema: SEARCH_TOOL.inputSchema,
+            },
         },
     },
 });
-// Initialize Research Server
+// Initialize research server
 const researchServer = new ResearchServer();
-const config = loadConfig();
+researchServer.setServer(server);
 // List tools handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     logMessage(server, "debug", "Handling list_tools request");
-    const tools = [WEB_SEARCH_TOOL, READ_URL_TOOL];
-    if (config.research.enabled) {
-        tools.push({
-            name: "research",
-            description: "Deep research through structured thinking steps.",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    thought: { type: "string", description: "Your current thinking step" },
-                    nextThoughtNeeded: { type: "boolean", description: "Whether another thought step is needed" },
-                    thoughtNumber: { type: "number", description: "Current thought number (numeric value, e.g., 1, 2, 3)" },
-                    totalThoughts: { type: "number", description: "Estimated total thoughts needed (numeric value, e.g., 5, 10)" },
-                    isRevision: { type: "boolean", description: "Whether this revises previous thinking" },
-                    revisesThought: { type: "number", description: "Which thought is being reconsidered" },
-                    branchFromThought: { type: "number", description: "Branching point thought number" },
-                    branchId: { type: "string", description: "Branch identifier" },
-                    needsMoreThoughts: { type: "boolean", description: "If more thoughts are needed" }
-                },
-                required: ["thought", "nextThoughtNeeded", "thoughtNumber", "totalThoughts"]
-            }
-        });
-    }
     return {
-        tools: tools,
+        tools: [SEARCH_TOOL, READ_URL_TOOL],
     };
 });
 // Call tool handler
@@ -115,21 +91,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const sessionId = request._meta?.sessionId || "default";
     logMessage(server, "debug", `Handling call_tool request: ${name} (session: ${sessionId})`);
     try {
-        if (name === "search") {
-            if (!isSearXNGWebSearchArgs(args)) {
-                throw new Error("Invalid arguments for web search");
-            }
-            const result = await performWebSearch(server, args.query, args.pageno, args.time_range, args.language, args.safesearch, sessionId);
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: result,
-                    },
-                ],
-            };
-        }
-        else if (name === "read") {
+        if (name === "read") {
             if (!isWebUrlReadArgs(args)) {
                 throw new Error("Invalid arguments for URL reading");
             }
@@ -160,17 +122,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 ],
             };
         }
-        else if (name === "research") {
-            if (!config.research.enabled) {
-                throw new Error("Research tool is disabled. Set ENABLE_RESEARCH_FRAMEWORK=true to enable.");
-            }
-            const result = researchServer.processThought(args);
+        else if (name === "search") {
+            // search工具现在是异步的，需要await
+            const result = await researchServer.processThought(args, sessionId);
             if (result.isError) {
-                return result;
+                throw new Error("Research tool execution failed");
             }
-            return {
-                content: result.content
-            };
+            return result;
         }
         else {
             throw new Error(`Unknown tool: ${name}`);

@@ -7,16 +7,31 @@ import { urlCache } from "./cache.js";
 import { incrementUrlReadRound, recordUrlRead, getUrlReadContext, getCacheHint, getDetailedCacheHint, cacheUrlContent } from "./session-tracker.js";
 import { loadConfig } from "./config.js";
 import { isUrlAllowed } from "./robots.js";
-import puppeteer from "puppeteer-core";
 import { createURLFormatError, createServerError, createContentError, createTimeoutError, createUnexpectedError } from "./error-handler.js";
+let puppeteer = null;
+async function getPuppeteer() {
+    if (!puppeteer) {
+        try {
+            puppeteer = await import('puppeteer-core');
+        }
+        catch (e) {
+            console.log('Puppeteer not installed. Browser rendering disabled.');
+        }
+    }
+    return puppeteer;
+}
 let browser = null;
 async function getBrowser() {
+    const puppeteerModule = await getPuppeteer();
+    if (!puppeteerModule) {
+        throw new Error('Puppeteer not installed. Browser rendering disabled.');
+    }
     if (!browser) {
         const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH ||
             process.platform === 'linux' ? '/usr/bin/chromium-browser' :
             process.platform === 'darwin' ? '/Applications/Chromium.app/Contents/MacOS/Chromium' :
                 'C:\\Program Files\\Chromium\\Application\\chrome.exe';
-        browser = await puppeteer.launch({
+        browser = await puppeteerModule.launch({
             executablePath: chromiumPath,
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -330,7 +345,7 @@ export async function fetchAndConvertToMarkdown(server, url, timeoutMs, paginati
             }
         }
         // Fallback to Puppeteer
-        if (usePuppeteer) {
+        if (usePuppeteer && puppeteer) {
             try {
                 const puppeteerContent = await fetchWithPuppeteer(resolvedUrl, fetchTimeout, paginationOptions);
                 urlCache.set(resolvedUrl, '', puppeteerContent);

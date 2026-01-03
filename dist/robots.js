@@ -1,11 +1,15 @@
 import { loadConfig } from './config.js';
-let robotsParser = null;
-async function getRobotsParser() {
-    if (!robotsParser) {
+let robotsInstance = null;
+async function getRobotsInstance() {
+    if (!robotsInstance) {
         const module = await import('robots-txt-parser');
-        robotsParser = module;
+        const createRobotsParser = module.default || module;
+        robotsInstance = createRobotsParser({
+            userAgent: '*',
+            allowOnNeutral: false
+        });
     }
-    return robotsParser;
+    return robotsInstance;
 }
 const robotsCache = new Map();
 const ROBOTS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -28,8 +32,8 @@ export async function isUrlAllowed(url) {
         if (!robotsTxt) {
             return true;
         }
-        const parser = await getRobotsParser();
-        const robots = parser.parse(robotsTxt);
+        const robots = await getRobotsInstance();
+        robots.parseRobots(urlObj.origin, robotsTxt);
         robotsCache.set(domain, {
             robots,
             timestamp: Date.now()
@@ -76,8 +80,7 @@ async function fetchRobotsTxt(origin) {
 }
 function checkRobots(robots, url) {
     try {
-        const userAgent = '*';
-        const allowed = robots.isAllowed(url, userAgent);
+        const allowed = robots.canCrawlSync(url);
         if (!allowed) {
             console.log(`URL blocked by robots.txt: ${url}`);
         }

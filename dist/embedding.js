@@ -12,11 +12,18 @@ function getOllamaClient() {
 function tokenize(text) {
     if (!text)
         return [];
-    return text
-        .toLowerCase()
-        .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
-        .split(/\s+/)
-        .filter(token => token.length > 0);
+    // Remove special characters first but keep Chinese characters and alphanumeric
+    const cleanText = text.toLowerCase().replace(/[^\w\s\u4e00-\u9fa5]/g, '');
+    // Use Intl.Segmenter for proper word segmentation (supports Chinese & English mixed)
+    const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'word' });
+    const segments = segmenter.segment(cleanText);
+    const tokens = [];
+    for (const segment of segments) {
+        if (segment.isWordLike) {
+            tokens.push(segment.segment);
+        }
+    }
+    return tokens;
 }
 function calculateTF(text, term) {
     const tokens = tokenize(text);
