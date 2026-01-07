@@ -41,7 +41,6 @@ export const READ_URL_TOOL = {
                 minimum: 1000,
             },
         },
-        required: ["url"],
     },
 };
 export function isWebUrlReadArgs(args) {

@@ -28,6 +28,15 @@ export interface ScoredResult extends SearchResult {
   similarity: number;
 }
 
+function isVideoSite(url: string, blocklist: string[]): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return blocklist.some(domain => hostname.includes(domain.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
 export async function performWebSearch(
   server: Server,
   query: string,
@@ -236,7 +245,17 @@ export async function performWebSearch(
     score: result.score || 0,
   }));
 
-  if (results.length === 0) {
+  let filteredResults = results;
+  if (config.fetch.blockVideoSites && config.fetch.videoBlocklist.length > 0) {
+    const beforeFilter = filteredResults.length;
+    filteredResults = filteredResults.filter(r => !isVideoSite(r.url, config.fetch.videoBlocklist));
+    const afterFilter = filteredResults.length;
+    if (beforeFilter > afterFilter) {
+      logMessage(server, "info", `Filtered ${beforeFilter - afterFilter} video sites from results`);
+    }
+  }
+
+  if (filteredResults.length === 0) {
     logMessage(server, "info", `No results found for query: "${query}"`);
     return createNoResultsMessage(query);
   }
@@ -262,11 +281,11 @@ export async function performWebSearch(
   return `${cacheMarker}💾 【磁盘缓存命中】此搜索结果来自缓存 (${duration}ms)\n\n${resultsText}`;
   }
 
-  setCachedSearch(cacheKey, results);
+  setCachedSearch(cacheKey, filteredResults);
 
-  let finalResults = results;
+  let finalResults = filteredResults;
 
-  if (config.embedding.enabled && results.length > 0) {
+  if (config.embedding.enabled && filteredResults.length > 0) {
     try {
       logMessage(server, "info", `Starting hybrid retrieval for query: "${query}"`);
       const hybridResults = await rerankResults(query, results, true, 0.3, 0.7);

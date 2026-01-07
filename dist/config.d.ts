@@ -16,10 +16,11 @@ export interface CacheConfig {
 export interface FetchConfig {
     timeoutMs: number;
     enableRobotsTxt: boolean;
+    blockVideoSites: boolean;
+    videoBlocklist: string[];
 }
 export interface ResearchConfig {
     maxKeywords: number;
-    maxResultsPerKeyword: number;
     maxDescriptionLength: number;
     searchTimeoutMs: number;
 }

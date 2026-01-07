@@ -2,7 +2,7 @@
 
 [![MCP Badge](https://lobehub.com/badge/mcp/sebrinass-mcp-augmented-search)](https://lobehub.com/mcp/sebrinass-mcp-augmented-search)
 
-MCP (Model Context Protocol) server that integrates SearXNG with hybrid retrieval, semantic caching, and structured thinking.
+MCP (Model Context Protocol) server that integrates SearXNG with hybrid retrieval, semantic caching, and structured thinking, featuring video site filtering, highly customizable, and maximizing context efficiency.
 
 Fork of [ihor-sokoliuk/mcp-searxng](https://github.com/ihor-sokoliuk/mcp-searxng).
 

@@ -41,10 +41,11 @@ export function loadConfig() {
         fetch: {
             timeoutMs: getEnvNumber('FETCH_TIMEOUT_MS', 30000),
             enableRobotsTxt: getEnvBoolean('ENABLE_ROBOTS_TXT', false),
+            blockVideoSites: getEnvBoolean('BLOCK_VIDEO_SITES', false),
+            videoBlocklist: (getEnv('VIDEO_BLOCKLIST', '') || '').split(',').map(s => s.trim()).filter(Boolean),
         },
         research: {
             maxKeywords: getEnvNumber('MAX_KEYWORDS', 5),
-            maxResultsPerKeyword: getEnvNumber('MAX_RESULTS_PER_KEYWORD', 5),
             maxDescriptionLength: getEnvNumber('MAX_DESCRIPTION_LENGTH', 300),
             searchTimeoutMs: getEnvNumber('RESEARCH_SEARCH_TIMEOUT_MS', 10000),
         },

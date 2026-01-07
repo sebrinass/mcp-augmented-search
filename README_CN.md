@@ -1,6 +1,6 @@
 # MCP 增强搜索
 
-MCP (Model Context Protocol) 服务器，集成 SearXNG、混合检索、语义缓存和结构化思考。
+MCP (Model Context Protocol) 服务器，集成 SearXNG、混合检索、语义缓存和结构化思考，支持视频网站过滤，高自由度调整，最大程度节省上下文。
 
 Fork 自 [ihor-sokoliuk/mcp-searxng](https://github.com/ihor-sokoliuk/mcp-searxng)。
 

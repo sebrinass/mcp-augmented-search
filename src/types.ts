@@ -53,7 +53,6 @@ export const READ_URL_TOOL: Tool = {
         minimum: 1000,
       },
     },
-    required: ["url"],
   },
 };
 

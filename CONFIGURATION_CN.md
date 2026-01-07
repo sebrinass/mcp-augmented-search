@@ -25,6 +25,8 @@ MCP-SearXNG 完整配置参考。
 | | `RESEARCH_SEARCH_TIMEOUT_MS` | 否 | `10000` |
 | **网络** | `FETCH_TIMEOUT_MS` | 否 | `30000` |
 | | `ENABLE_ROBOTS_TXT` | 否 | `false` |
+| | `BLOCK_VIDEO_SITES` | 否 | `false` |
+| | `VIDEO_BLOCKLIST` | 否 | - |
 | | `USER_AGENT` | 否 | - |
 | | `HTTP_PROXY` | 否 | - |
 | | `HTTPS_PROXY` | 否 | - |
@@ -243,6 +245,31 @@ FETCH_TIMEOUT_MS=30000   # 30 秒（默认）
 ENABLE_ROBOTS_TXT=true   # 启用
 ENABLE_ROBOTS_TXT=false  # 禁用（默认）
 ```
+
+### BLOCK_VIDEO_SITES
+
+**默认值：** `false`
+
+启用视频网站过滤，从搜索结果中移除视频网站链接。
+
+```bash
+BLOCK_VIDEO_SITES=true   # 启用
+BLOCK_VIDEO_SITES=false  # 禁用（默认）
+```
+
+**注意：** 需要配合 `VIDEO_BLOCKLIST` 指定要屏蔽的域名。
+
+### VIDEO_BLOCKLIST
+
+**默认值：** - (空)
+
+要屏蔽的视频网站域名列表（逗号分隔）。
+
+```bash
+VIDEO_BLOCKLIST=youtube.com,bilibili.com,tiktok.com,douyin.com,netflix.com
+```
+
+**注意：** 过滤在从 SearXNG 获取结果后、Embedding/BM25 处理前执行。
 
 ### USER_AGENT
 

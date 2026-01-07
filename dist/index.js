@@ -93,14 +93,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
         if (name === "read") {
             if (!isWebUrlReadArgs(args)) {
-                throw new Error("Invalid arguments for URL reading");
+                logMessage(server, "error", `Read tool validation failed. Args: ${JSON.stringify(args)}`);
+                throw new Error(`Invalid arguments for URL reading. Received: ${JSON.stringify(args)}`);
             }
             const paginationOptions = {
-                startChar: args.startChar,
-                maxLength: args.maxLength,
-                section: args.section,
-                paragraphRange: args.paragraphRange,
-                readHeadings: args.readHeadings,
+                startChar: typeof args.startChar === 'number' ? args.startChar : 0,
+                maxLength: typeof args.maxLength === 'number' ? args.maxLength : undefined,
+                section: typeof args.section === 'string' ? args.section : undefined,
+                paragraphRange: typeof args.paragraphRange === 'string' ? args.paragraphRange : undefined,
+                readHeadings: args.readHeadings === true,
             };
             let result;
             if (args.urls && Array.isArray(args.urls) && args.urls.length > 0) {

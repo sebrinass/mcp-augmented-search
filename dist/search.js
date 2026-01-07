@@ -5,6 +5,15 @@ import { loadConfig } from "./config.js";
 import { rerankResults } from "./embedding.js";
 import { getCachedSearch, setCachedSearch, isSearchDuplicate, getDuplicateSearchResult, markSearchPerformed, findSimilarSearch, setSimilarSearch } from "./cache.js";
 import { incrementSearchRound, recordSearch, getSearchContext, getCacheHint, getDetailedCacheHint, cacheSearchResults } from "./session-tracker.js";
+function isVideoSite(url, blocklist) {
+    try {
+        const hostname = new URL(url).hostname.toLowerCase();
+        return blocklist.some(domain => hostname.includes(domain.toLowerCase()));
+    }
+    catch {
+        return false;
+    }
+}
 export async function performWebSearch(server, query, pageno = 1, time_range, language = "all", safesearch, sessionId = "default") {
     const startTime = Date.now();
     const searchParams = [
@@ -177,7 +186,16 @@ export async function performWebSearch(server, query, pageno = 1, time_range, la
         url: result.url || "",
         score: result.score || 0,
     }));
-    if (results.length === 0) {
+    let filteredResults = results;
+    if (config.fetch.blockVideoSites && config.fetch.videoBlocklist.length > 0) {
+        const beforeFilter = filteredResults.length;
+        filteredResults = filteredResults.filter(r => !isVideoSite(r.url, config.fetch.videoBlocklist));
+        const afterFilter = filteredResults.length;
+        if (beforeFilter > afterFilter) {
+            logMessage(server, "info", `Filtered ${beforeFilter - afterFilter} video sites from results`);
+        }
+    }
+    if (filteredResults.length === 0) {
         logMessage(server, "info", `No results found for query: "${query}"`);
         return createNoResultsMessage(query);
     }
@@ -201,9 +219,9 @@ export async function performWebSearch(server, query, pageno = 1, time_range, la
             .join("\n\n");
         return `${cacheMarker}💾 【磁盘缓存命中】此搜索结果来自缓存 (${duration}ms)\n\n${resultsText}`;
     }
-    setCachedSearch(cacheKey, results);
-    let finalResults = results;
-    if (config.embedding.enabled && results.length > 0) {
+    setCachedSearch(cacheKey, filteredResults);
+    let finalResults = filteredResults;
+    if (config.embedding.enabled && filteredResults.length > 0) {
         try {
             logMessage(server, "info", `Starting hybrid retrieval for query: "${query}"`);
             const hybridResults = await rerankResults(query, results, true, 0.3, 0.7);
@@ -235,6 +253,7 @@ export async function performWebSearch(server, query, pageno = 1, time_range, la
     const cacheHint = getDetailedCacheHint(sessionId, query);
     const contextMarker = [searchContext, cacheHint].filter(Boolean).join('\n\n');
     const resultsText = finalResults
+        .slice(0, config.embedding.topK)
         .map((r) => {
         let urlText = `URL: ${r.url}`;
         if (r.url.includes('sogou.com/link?url=')) {

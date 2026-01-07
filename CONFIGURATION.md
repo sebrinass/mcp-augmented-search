@@ -25,6 +25,8 @@ Complete configuration reference for MCP-SearXNG.
 | | `RESEARCH_SEARCH_TIMEOUT_MS` | No | `10000` |
 | **Network** | `FETCH_TIMEOUT_MS` | No | `30000` |
 | | `ENABLE_ROBOTS_TXT` | No | `false` |
+| | `BLOCK_VIDEO_SITES` | No | `false` |
+| | `VIDEO_BLOCKLIST` | No | - |
 | | `USER_AGENT` | No | - |
 | | `HTTP_PROXY` | No | - |
 | | `HTTPS_PROXY` | No | - |
@@ -243,6 +245,31 @@ Whether to respect robots.txt rules.
 ENABLE_ROBOTS_TXT=true   # Enable
 ENABLE_ROBOTS_TXT=false  # Disable (default)
 ```
+
+### BLOCK_VIDEO_SITES
+
+**Default:** `false`
+
+Enable filtering of video websites from search results.
+
+```bash
+BLOCK_VIDEO_SITES=true   # Enable
+BLOCK_VIDEO_SITES=false  # Disable (default)
+```
+
+**Note:** Requires `VIDEO_BLOCKLIST` to specify which domains to block.
+
+### VIDEO_BLOCKLIST
+
+**Default:** - (empty)
+
+Comma-separated list of video website domains to block.
+
+```bash
+VIDEO_BLOCKLIST=youtube.com,bilibili.com,tiktok.com,douyin.com,netflix.com
+```
+
+**Note:** Filtering happens after SearXNG results are retrieved but before embedding/BM25 processing.
 
 ### USER_AGENT
 

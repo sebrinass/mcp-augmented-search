@@ -18,6 +18,8 @@ export interface CacheConfig {
 export interface FetchConfig {
   timeoutMs: number;
   enableRobotsTxt: boolean;
+  blockVideoSites: boolean;
+  videoBlocklist: string[];
 }
 
 export interface ResearchConfig {
@@ -84,6 +86,8 @@ export function loadConfig(): Config {
     fetch: {
       timeoutMs: getEnvNumber('FETCH_TIMEOUT_MS', 30000),
       enableRobotsTxt: getEnvBoolean('ENABLE_ROBOTS_TXT', false),
+      blockVideoSites: getEnvBoolean('BLOCK_VIDEO_SITES', false),
+      videoBlocklist: (getEnv('VIDEO_BLOCKLIST', '') || '').split(',').map(s => s.trim()).filter(Boolean),
     },
     research: {
       maxKeywords: getEnvNumber('MAX_KEYWORDS', 5),
