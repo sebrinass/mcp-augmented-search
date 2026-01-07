@@ -80,6 +80,7 @@ Fork 自 [ihor-sokoliuk/mcp-searxng](https://github.com/ihor-sokoliuk/mcp-searxn
 - `thoughtNumber`（数字，必填）：当前步骤编号
 - `totalThoughts`（数字，必填）：预计总步骤数
 - `nextThoughtNeeded`（布尔值，必填）：是否继续
+- `site`（字符串，可选）：限制搜索到指定网站
 
 **返回格式：**
 ```json

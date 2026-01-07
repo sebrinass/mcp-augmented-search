@@ -97,7 +97,7 @@ async function fetchRobotsTxt(origin: string): Promise<string | null> {
 
 function checkRobots(robots: any, url: string): boolean {
   try {
-    const allowed = robots.canCrawlSync(url);
+    const allowed = robots.isAllowed(url);
     
     if (!allowed) {
       console.log(`URL blocked by robots.txt: ${url}`);

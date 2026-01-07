@@ -44,6 +44,7 @@ export async function performWebSearch(
   time_range?: string,
   language: string = "all",
   safesearch?: string,
+  site?: string,
   sessionId: string = "default"
 ) {
   const startTime = Date.now();
@@ -133,7 +134,13 @@ export async function performWebSearch(
 
   const url = new URL('/search', parsedUrl);
 
-  url.searchParams.set("q", query);
+  let searchQuery = query;
+  if (site) {
+    searchQuery = `site:${site} ${query}`;
+    logMessage(server, "info", `Using site-restricted search: ${site}`);
+  }
+
+  url.searchParams.set("q", searchQuery);
   url.searchParams.set("format", "json");
   url.searchParams.set("pageno", pageno.toString());
 

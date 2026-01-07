@@ -35,6 +35,7 @@ export interface ThoughtData {
   nextThoughtNeeded: boolean;
   informationSummary?: string;
   searchedKeywords?: string[];
+  site?: string;
 }
 
 // research 工具的返回结果
@@ -104,7 +105,7 @@ export class ResearchServer {
   }
 
   // 执行单个关键词搜索
-  private async searchKeyword(keyword: string, sessionId: string, maxDescriptionLength: number): Promise<KeywordSearchResult> {
+  private async searchKeyword(keyword: string, sessionId: string, maxDescriptionLength: number, site?: string): Promise<KeywordSearchResult> {
     if (!this.server) {
       return {
         keyword,
@@ -123,6 +124,7 @@ export class ResearchServer {
         undefined,   // time_range
         "all",       // language
         "0",         // safesearch
+        site,
         sessionId
       );
 
@@ -158,7 +160,8 @@ export class ResearchServer {
     sessionId: string,
     maxKeywords: number,
     maxDescriptionLength: number,
-    timeoutMs: number
+    timeoutMs: number,
+    site?: string
   ): Promise<KeywordSearchResult[]> {
     // 限制关键词数量
     const limitedKeywords = keywords.slice(0, maxKeywords);
@@ -180,7 +183,7 @@ export class ResearchServer {
         setTimeout(() => reject(new Error('搜索超时')), timeoutMs);
       });
 
-      const searchPromise = this.searchKeyword(keyword, sessionId, maxDescriptionLength);
+      const searchPromise = this.searchKeyword(keyword, sessionId, maxDescriptionLength, site);
 
       try {
         return await Promise.race([searchPromise, timeoutPromise]);
@@ -240,7 +243,8 @@ export class ResearchServer {
           sessionId,
           researchConfig.maxKeywords,
           researchConfig.maxDescriptionLength,
-          researchConfig.searchTimeoutMs
+          researchConfig.searchTimeoutMs,
+          input.site
         );
       }
 
@@ -335,6 +339,10 @@ export const SEARCH_TOOL: Tool = {
         type: "array",
         items: { type: "string" },
         description: "要搜索的关键词列表（最多5个）。填写后会自动执行搜索并返回结果。留空则不搜索。每个关键词应是独立的实体。"
+      },
+      site: {
+        type: "string",
+        description: "限制搜索范围到具体网站。当搜索结果中发现类似知识库或者项目文档的网站时，建议使用此参数进行深度挖掘"
       },
       isRevision: {
         type: "boolean",

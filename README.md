@@ -82,6 +82,7 @@ Enhanced search tool with structured thinking and concurrent search.
 - `thoughtNumber` (number, required): Current step number
 - `totalThoughts` (number, required): Estimated total steps
 - `nextThoughtNeeded` (boolean, required): Whether to continue
+- `site` (string, optional): Restrict search to specific website
 
 **Response Format:**
 ```json
