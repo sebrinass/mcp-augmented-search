@@ -390,6 +390,150 @@ export async function fetchAndConvertToMarkdown(server, url, timeoutMs, paginati
         clearTimeout(timeoutId);
     }
 }
+export async function fetchCleanMarkdown(server, url, timeoutMs) {
+    const startTime = Date.now();
+    const config = loadConfig();
+    const fetchTimeout = timeoutMs ?? config.fetch.timeoutMs;
+    const userAgent = config.userAgent || "MCP-SearXNG/1.0 (+https://github.com/sebrinass/mcp-searxng)";
+    logMessage(server, "info", `Fetching clean markdown: ${url} (timeout: ${fetchTimeout}ms)`);
+    const resolvedUrl = resolveRedirectUrl(server, url);
+    const cachedEntry = urlCache.get(resolvedUrl);
+    if (cachedEntry) {
+        logMessage(server, "info", `Using cached content for URL: ${resolvedUrl}`);
+        const duration = Date.now() - startTime;
+        logMessage(server, "info", `Processed cached URL: ${resolvedUrl} (${cachedEntry.markdownContent.length} chars in ${duration}ms)`);
+        return cachedEntry.markdownContent;
+    }
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(resolvedUrl);
+    }
+    catch (error) {
+        logMessage(server, "error", `Invalid URL format: ${resolvedUrl}`);
+        throw createURLFormatError(resolvedUrl);
+    }
+    const allowed = await isUrlAllowed(resolvedUrl);
+    if (!allowed) {
+        logMessage(server, "warning", `URL blocked by robots.txt: ${resolvedUrl}`);
+        throw createContentError("Access to this URL is blocked by the website's robots.txt policy.", resolvedUrl);
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
+    try {
+        const requestOptions = {
+            signal: controller.signal,
+            headers: {
+                "User-Agent": userAgent
+            }
+        };
+        const proxyAgent = createProxyAgent(resolvedUrl);
+        if (proxyAgent) {
+            requestOptions.dispatcher = proxyAgent;
+        }
+        let response = null;
+        let usePuppeteer = false;
+        try {
+            response = await fetch(resolvedUrl, requestOptions);
+        }
+        catch (error) {
+            logMessage(server, "warning", `Fetch failed: ${error.message}, falling back to Puppeteer`);
+            usePuppeteer = true;
+        }
+        if (!usePuppeteer && response) {
+            if (!response.ok) {
+                let responseBody;
+                try {
+                    responseBody = await response.text();
+                }
+                catch {
+                    responseBody = '[Could not read response body]';
+                }
+                const context = { url: resolvedUrl };
+                throw createServerError(response.status, response.statusText, responseBody, context);
+            }
+            let htmlContent;
+            try {
+                htmlContent = await response.text();
+            }
+            catch (error) {
+                throw createContentError(`Failed to read website content: ${error.message || 'Unknown error reading content'}`, resolvedUrl);
+            }
+            if (!htmlContent || htmlContent.trim().length === 0) {
+                logMessage(server, "warning", `Empty HTML content: ${resolvedUrl}, falling back to Puppeteer`);
+                usePuppeteer = true;
+            }
+            if (!usePuppeteer) {
+                let extractedHtmlContent;
+                try {
+                    const dom = new JSDOM(htmlContent);
+                    const reader = new Readability(dom.window.document);
+                    const article = reader.parse();
+                    if (article && article.content) {
+                        extractedHtmlContent = article.content;
+                        logMessage(server, "info", `Successfully extracted main content from: ${resolvedUrl}`);
+                    }
+                    else {
+                        logMessage(server, "warning", `Readability failed to extract content from: ${resolvedUrl}, using full HTML`);
+                        extractedHtmlContent = htmlContent;
+                    }
+                }
+                catch (error) {
+                    logMessage(server, "warning", `Readability extraction failed: ${error.message}, using full HTML`);
+                    extractedHtmlContent = htmlContent;
+                }
+                let markdownContent;
+                try {
+                    markdownContent = NodeHtmlMarkdown.translate(extractedHtmlContent);
+                }
+                catch (error) {
+                    logMessage(server, "warning", `Failed to convert HTML to Markdown, returning raw HTML: ${error.message}`);
+                    markdownContent = extractedHtmlContent;
+                }
+                if (!markdownContent || markdownContent.trim().length === 0) {
+                    logMessage(server, "warning", `Empty content after conversion: ${resolvedUrl}, falling back to Puppeteer`);
+                    usePuppeteer = true;
+                }
+                if (!usePuppeteer) {
+                    urlCache.set(resolvedUrl, htmlContent, markdownContent);
+                    cacheUrlContent(resolvedUrl, markdownContent);
+                    const duration = Date.now() - startTime;
+                    logMessage(server, "info", `Successfully fetched clean markdown: ${url} (${markdownContent.length} chars in ${duration}ms)`);
+                    return markdownContent;
+                }
+            }
+        }
+        if (usePuppeteer && puppeteer) {
+            try {
+                const puppeteerContent = await fetchWithPuppeteer(resolvedUrl, fetchTimeout, {});
+                urlCache.set(resolvedUrl, '', puppeteerContent);
+                cacheUrlContent(resolvedUrl, puppeteerContent);
+                const duration = Date.now() - startTime;
+                logMessage(server, "info", `Successfully fetched with Puppeteer: ${url} (${puppeteerContent.length} chars in ${duration}ms)`);
+                return puppeteerContent;
+            }
+            catch (error) {
+                logMessage(server, "error", `Puppeteer fallback failed: ${error.message}`);
+                throw createContentError(`Both fetch and Puppeteer failed: ${error.message}`, resolvedUrl);
+            }
+        }
+    }
+    catch (error) {
+        if (error.name === "AbortError") {
+            logMessage(server, "error", `Timeout fetching URL: ${resolvedUrl} (${fetchTimeout}ms)`);
+            throw createTimeoutError(fetchTimeout, resolvedUrl);
+        }
+        if (error.name === 'MCPSearXNGError') {
+            logMessage(server, "error", `Error fetching URL: ${resolvedUrl} - ${error.message}`);
+            throw error;
+        }
+        logMessage(server, "error", `Unexpected error fetching URL: ${resolvedUrl}`, error);
+        const context = { url: resolvedUrl };
+        throw createUnexpectedError(error, context);
+    }
+    finally {
+        clearTimeout(timeoutId);
+    }
+}
 export async function fetchAndConvertToMarkdownBatch(server, urls, timeoutMs, paginationOptions = {}, sessionId = "default") {
     const startTime = Date.now();
     const config = loadConfig();

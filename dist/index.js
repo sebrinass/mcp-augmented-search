@@ -3,11 +3,10 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, SetLevelRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 // Import modularized functionality
-import { READ_URL_TOOL, CRAWL_SITE_TOOL } from "./types.js";
+import { READ_URL_TOOL } from "./types.js";
 import { SEARCH_TOOL, ResearchServer } from "./research.js";
 import { logMessage, setLogLevel } from "./logging.js";
 import { fetchAndConvertToMarkdown, fetchAndConvertToMarkdownBatch } from "./url-reader.js";
-import { crawlSite } from "./crawl.js";
 import { createConfigResource, createHelpResource } from "./resources.js";
 import { createHttpServer } from "./http-server.js";
 import { validateEnvironment as validateEnv } from "./error-handler.js";
@@ -56,32 +55,6 @@ export function isWebUrlReadArgs(args) {
     }
     return true;
 }
-// Type guard for crawl site args
-export function isCrawlSiteArgs(args) {
-    if (typeof args !== "object" ||
-        args === null) {
-        return false;
-    }
-    const crawlArgs = args;
-    // Check for required url parameter
-    if (!("url" in crawlArgs && typeof crawlArgs.url === "string")) {
-        return false;
-    }
-    // Validate optional parameters
-    if (crawlArgs.maxLinks !== undefined && (typeof crawlArgs.maxLinks !== "number" || crawlArgs.maxLinks < 1)) {
-        return false;
-    }
-    if (crawlArgs.filterPaths !== undefined && (!Array.isArray(crawlArgs.filterPaths) || !crawlArgs.filterPaths.every((p) => typeof p === "string"))) {
-        return false;
-    }
-    if (crawlArgs.excludePaths !== undefined && (!Array.isArray(crawlArgs.excludePaths) || !crawlArgs.excludePaths.every((p) => typeof p === "string"))) {
-        return false;
-    }
-    if (crawlArgs.timeoutMs !== undefined && (typeof crawlArgs.timeoutMs !== "number" || crawlArgs.timeoutMs < 1000)) {
-        return false;
-    }
-    return true;
-}
 // Server implementation
 const server = new Server({
     name: "ihor-sokoliuk/mcp-searxng",
@@ -109,7 +82,7 @@ researchServer.setServer(server);
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     logMessage(server, "debug", "Handling list_tools request");
     return {
-        tools: [SEARCH_TOOL, READ_URL_TOOL, CRAWL_SITE_TOOL],
+        tools: [SEARCH_TOOL, READ_URL_TOOL],
     };
 });
 // Call tool handler
@@ -157,30 +130,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 throw new Error("Research tool execution failed");
             }
             return result;
-        }
-        else if (name === "crawl") {
-            if (!isCrawlSiteArgs(args)) {
-                logMessage(server, "error", `Crawl tool validation failed. Args: ${JSON.stringify(args)}`);
-                throw new Error(`Invalid arguments for crawl. Received: ${JSON.stringify(args)}`);
-            }
-            const crawlOptions = {
-                maxLinks: typeof args.maxLinks === 'number' ? args.maxLinks : 10,
-                filterPaths: typeof args.filterPaths === 'object' && Array.isArray(args.filterPaths) ? args.filterPaths : undefined,
-                excludePaths: typeof args.excludePaths === 'object' && Array.isArray(args.excludePaths) ? args.excludePaths : undefined,
-                timeoutMs: typeof args.timeoutMs === 'number' ? args.timeoutMs : undefined,
-            };
-            const result = await crawlSite(server, args.url, crawlOptions);
-            const resultText = result.map(link => {
-                return `## ${link.title}\n\nURL: ${link.url}\n\n${link.summary}`;
-            }).join('\n\n---\n\n');
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: resultText,
-                    },
-                ],
-            };
         }
         else {
             throw new Error(`Unknown tool: ${name}`);

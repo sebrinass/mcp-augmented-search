@@ -1,13 +1,22 @@
 import { Ollama } from 'ollama';
+import OpenAI from 'openai';
 import { loadConfig } from './config.js';
 import { getCachedEmbedding, setCachedEmbedding } from './cache.js';
 let ollamaClient = null;
+let openaiClient = null;
 function getOllamaClient() {
     if (!ollamaClient) {
         const config = loadConfig();
         ollamaClient = new Ollama({ host: config.embedding.host });
     }
     return ollamaClient;
+}
+function getOpenAIClient() {
+    if (!openaiClient) {
+        const config = loadConfig();
+        openaiClient = new OpenAI({ apiKey: config.embedding.apiKey });
+    }
+    return openaiClient;
 }
 function tokenize(text) {
     if (!text)
@@ -97,14 +106,24 @@ export async function getEmbedding(text) {
         if (chunks.length === 0) {
             return [];
         }
-        const response = await getOllamaClient().embed({
-            model: config.embedding.model,
-            input: chunks,
-        });
-        if (response.embeddings.length === 0) {
+        let embedding;
+        if (config.embedding.provider === 'openai') {
+            const response = await getOpenAIClient().embeddings.create({
+                model: config.embedding.model,
+                input: chunks[0],
+            });
+            embedding = response.data[0].embedding;
+        }
+        else {
+            const response = await getOllamaClient().embed({
+                model: config.embedding.model,
+                input: chunks,
+            });
+            embedding = response.embeddings[0];
+        }
+        if (!embedding || embedding.length === 0) {
             return [];
         }
-        const embedding = response.embeddings[0];
         setCachedEmbedding(text, embedding);
         return embedding;
     }

@@ -14,7 +14,7 @@ function isVideoSite(url, blocklist) {
         return false;
     }
 }
-export async function performWebSearch(server, query, pageno = 1, time_range, language = "all", safesearch, sessionId = "default") {
+export async function performWebSearch(server, query, pageno = 1, time_range, language = "all", safesearch, site, sessionId = "default") {
     const startTime = Date.now();
     const searchParams = [
         `page ${pageno}`,
@@ -88,7 +88,12 @@ export async function performWebSearch(server, query, pageno = 1, time_range, la
         throw createConfigurationError(`Invalid SEARXNG_URL format: ${searxngUrl}. Use format: http://localhost:8080`);
     }
     const url = new URL('/search', parsedUrl);
-    url.searchParams.set("q", query);
+    let searchQuery = query;
+    if (site) {
+        searchQuery = `site:${site} ${query}`;
+        logMessage(server, "info", `Using site-restricted search: ${site}`);
+    }
+    url.searchParams.set("q", searchQuery);
     url.searchParams.set("format", "json");
     url.searchParams.set("pageno", pageno.toString());
     if (time_range !== undefined &&

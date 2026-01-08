@@ -25,7 +25,9 @@ export function loadConfig() {
         noProxy: getEnv('NO_PROXY'),
         embedding: {
             enabled: getEnvBoolean('ENABLE_EMBEDDING', false),
+            provider: getEnv('EMBEDDING_PROVIDER', 'ollama') || 'ollama',
             host: getEnv('OLLAMA_HOST', 'http://localhost:11434') || 'http://localhost:11434',
+            apiKey: getEnv('OPENAI_API_KEY'),
             model: getEnv('EMBEDDING_MODEL', 'nomic-embed-text') || 'nomic-embed-text',
             topK: getEnvNumber('TOP_K', 3),
             chunkSize: getEnvNumber('CHUNK_SIZE', 1000),

@@ -9,4 +9,4 @@ export interface SearchResult {
 export interface ScoredResult extends SearchResult {
     similarity: number;
 }
-export declare function performWebSearch(server: Server, query: string, pageno?: number, time_range?: string, language?: string, safesearch?: string, sessionId?: string): Promise<string>;
+export declare function performWebSearch(server: Server, query: string, pageno?: number, time_range?: string, language?: string, safesearch?: string, site?: string, sessionId?: string): Promise<string>;

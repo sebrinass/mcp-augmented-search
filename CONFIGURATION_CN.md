@@ -10,7 +10,9 @@ MCP-SearXNG 完整配置参考。
 |------|------|------|--------|
 | **基础** | `SEARXNG_URL` | ✅ 是 | - |
 | **嵌入** | `ENABLE_EMBEDDING` | 否 | `false` |
+| | `EMBEDDING_PROVIDER` | 否 | `ollama` |
 | | `OLLAMA_HOST` | 否 | `http://localhost:11434` |
+| | `OPENAI_API_KEY` | 否 | - |
 | | `EMBEDDING_MODEL` | 否 | `nomic-embed-text` |
 | | `TOP_K` | 否 | `3` |
 | | `CHUNK_SIZE` | 否 | `1000` |
@@ -66,18 +68,48 @@ ENABLE_EMBEDDING=true   # 启用
 ENABLE_EMBEDDING=false  # 禁用（默认）
 ```
 
-**注意：** 需要 Ollama 运行并加载嵌入模型。
+**注意：** 需要配置嵌入服务（Ollama 或 OpenAI）。
+
+### EMBEDDING_PROVIDER
+
+**默认值：** `ollama`
+
+嵌入服务提供商。支持 `ollama` 和 `openai`。
+
+```bash
+EMBEDDING_PROVIDER=ollama   # 使用 Ollama（默认）
+EMBEDDING_PROVIDER=openai   # 使用 OpenAI
+```
+
+**说明：**
+- `ollama`：使用本地 Ollama 服务，需要配置 `OLLAMA_HOST`
+- `openai`：使用 OpenAI API，需要配置 `OPENAI_API_KEY`
 
 ### OLLAMA_HOST
 
 **默认值：** `http://localhost:11434`
 
-Ollama 服务器 URL。
+Ollama 服务器 URL。仅在 `EMBEDDING_PROVIDER=ollama` 时使用。
 
 ```bash
 OLLAMA_HOST=http://localhost:11434
 # Docker: http://host.docker.internal:11434
 ```
+
+### OPENAI_API_KEY
+
+**默认值：** - (未设置)
+
+OpenAI API 密钥。仅在 `EMBEDDING_PROVIDER=openai` 时使用。
+
+```bash
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+```
+
+**说明：**
+- 用于访问 OpenAI Embedding API
+- 仅在使用 OpenAI 作为嵌入提供商时需要
+- 如果使用 Ollama，则不需要此配置
 
 ### EMBEDDING_MODEL
 
@@ -85,9 +117,17 @@ OLLAMA_HOST=http://localhost:11434
 
 嵌入模型名称。
 
+**Ollama 模型：**
 ```bash
 EMBEDDING_MODEL=nomic-embed-text
 EMBEDDING_MODEL=bge-m3
+```
+
+**OpenAI 模型：**
+```bash
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_MODEL=text-embedding-3-large
+EMBEDDING_MODEL=text-embedding-ada-002
 ```
 
 ### TOP_K
@@ -341,13 +381,13 @@ PUPPETEER_EXECUTABLE_PATH=/Applications/Chromium.app/Contents/MacOS/Chromium
 
 ## 配置示例
 
-### 基础版（无 Ollama）
+### 基础版（无嵌入）
 
 ```bash
 SEARXNG_URL=http://localhost:8080
 ```
 
-### 推荐版（完整）
+### Ollama 版本（本地嵌入）
 
 ```bash
 # 基础
@@ -355,8 +395,29 @@ SEARXNG_URL=http://localhost:8080
 
 # 嵌入
 ENABLE_EMBEDDING=true
+EMBEDDING_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
 EMBEDDING_MODEL=nomic-embed-text
+
+# 缓存
+ENABLE_CACHE=true
+CACHE_TTL=300
+
+# 搜索
+MAX_KEYWORDS=5
+```
+
+### OpenAI 版本（云端嵌入）
+
+```bash
+# 基础
+SEARXNG_URL=http://localhost:8080
+
+# 嵌入
+ENABLE_EMBEDDING=true
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+EMBEDDING_MODEL=text-embedding-3-small
 
 # 缓存
 ENABLE_CACHE=true
@@ -376,7 +437,24 @@ services:
     environment:
       - SEARXNG_URL=http://host.docker.internal:8080
       - ENABLE_EMBEDDING=true
+      - EMBEDDING_PROVIDER=ollama
       - OLLAMA_HOST=http://host.docker.internal:11434
+      - ENABLE_CACHE=true
+```
+
+**使用 OpenAI：**
+
+```yaml
+services:
+  mcp-augmented-search:
+    image: mcp-augmented-search:latest
+    stdin_open: true
+    environment:
+      - SEARXNG_URL=http://host.docker.internal:8080
+      - ENABLE_EMBEDDING=true
+      - EMBEDDING_PROVIDER=openai
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDING_MODEL=text-embedding-3-small
       - ENABLE_CACHE=true
 ```
 

@@ -10,7 +10,9 @@ Complete configuration reference for MCP-SearXNG.
 |----------|----------|----------|---------|
 | **Basic** | `SEARXNG_URL` | ✅ Yes | - |
 | **Embedding** | `ENABLE_EMBEDDING` | No | `false` |
+| | `EMBEDDING_PROVIDER` | No | `ollama` |
 | | `OLLAMA_HOST` | No | `http://localhost:11434` |
+| | `OPENAI_API_KEY` | No | - |
 | | `EMBEDDING_MODEL` | No | `nomic-embed-text` |
 | | `TOP_K` | No | `3` |
 | | `CHUNK_SIZE` | No | `1000` |
@@ -66,18 +68,48 @@ ENABLE_EMBEDDING=true   # Enable
 ENABLE_EMBEDDING=false  # Disable (default)
 ```
 
-**Note:** Requires Ollama running with embedding model.
+**Note:** Requires embedding service configured (Ollama or OpenAI).
+
+### EMBEDDING_PROVIDER
+
+**Default:** `ollama`
+
+Embedding service provider. Supports `ollama` and `openai`.
+
+```bash
+EMBEDDING_PROVIDER=ollama   # Use Ollama (default)
+EMBEDDING_PROVIDER=openai   # Use OpenAI
+```
+
+**Description:**
+- `ollama`: Use local Ollama service, requires `OLLAMA_HOST` configuration
+- `openai`: Use OpenAI API, requires `OPENAI_API_KEY` configuration
 
 ### OLLAMA_HOST
 
 **Default:** `http://localhost:11434`
 
-Ollama server URL.
+Ollama server URL. Only used when `EMBEDDING_PROVIDER=ollama`.
 
 ```bash
 OLLAMA_HOST=http://localhost:11434
 # Docker: http://host.docker.internal:11434
 ```
+
+### OPENAI_API_KEY
+
+**Default:** - (not set)
+
+OpenAI API key. Only used when `EMBEDDING_PROVIDER=openai`.
+
+```bash
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+```
+
+**Description:**
+- Used to access OpenAI Embedding API
+- Only required when using OpenAI as embedding provider
+- Not needed if using Ollama
 
 ### EMBEDDING_MODEL
 
@@ -85,9 +117,17 @@ OLLAMA_HOST=http://localhost:11434
 
 Embedding model name.
 
+**Ollama Models:**
 ```bash
 EMBEDDING_MODEL=nomic-embed-text
 EMBEDDING_MODEL=bge-m3
+```
+
+**OpenAI Models:**
+```bash
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_MODEL=text-embedding-3-large
+EMBEDDING_MODEL=text-embedding-ada-002
 ```
 
 ### TOP_K
@@ -341,13 +381,13 @@ PUPPETEER_EXECUTABLE_PATH=/Applications/Chromium.app/Contents/MacOS/Chromium
 
 ## Example Configurations
 
-### Basic (No Ollama)
+### Basic (No Embedding)
 
 ```bash
 SEARXNG_URL=http://localhost:8080
 ```
 
-### Recommended (Full)
+### Ollama Version (Local Embedding)
 
 ```bash
 # Basic
@@ -355,8 +395,29 @@ SEARXNG_URL=http://localhost:8080
 
 # Embedding
 ENABLE_EMBEDDING=true
+EMBEDDING_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
 EMBEDDING_MODEL=nomic-embed-text
+
+# Cache
+ENABLE_CACHE=true
+CACHE_TTL=300
+
+# Search
+MAX_KEYWORDS=5
+```
+
+### OpenAI Version (Cloud Embedding)
+
+```bash
+# Basic
+SEARXNG_URL=http://localhost:8080
+
+# Embedding
+ENABLE_EMBEDDING=true
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+EMBEDDING_MODEL=text-embedding-3-small
 
 # Cache
 ENABLE_CACHE=true
@@ -376,7 +437,24 @@ services:
     environment:
       - SEARXNG_URL=http://host.docker.internal:8080
       - ENABLE_EMBEDDING=true
+      - EMBEDDING_PROVIDER=ollama
       - OLLAMA_HOST=http://host.docker.internal:11434
+      - ENABLE_CACHE=true
+```
+
+**Using OpenAI:**
+
+```yaml
+services:
+  mcp-augmented-search:
+    image: mcp-augmented-search:latest
+    stdin_open: true
+    environment:
+      - SEARXNG_URL=http://host.docker.internal:8080
+      - ENABLE_EMBEDDING=true
+      - EMBEDDING_PROVIDER=openai
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDING_MODEL=text-embedding-3-small
       - ENABLE_CACHE=true
 ```
 

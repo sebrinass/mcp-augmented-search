@@ -11,10 +11,3 @@ export declare function isWebUrlReadArgs(args: unknown): args is {
     readHeadings?: boolean;
     timeoutMs?: number;
 };
-export declare function isCrawlSiteArgs(args: unknown): args is {
-    url?: string;
-    maxLinks?: number;
-    filterPaths?: string[];
-    excludePaths?: string[];
-    timeoutMs?: number;
-};

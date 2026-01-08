@@ -1,6 +1,8 @@
 export interface EmbeddingConfig {
     enabled: boolean;
+    provider: string;
     host: string;
+    apiKey?: string;
     model: string;
     topK: number;
     chunkSize: number;
