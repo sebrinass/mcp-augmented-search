@@ -39,7 +39,11 @@ function getOllamaClient(): Ollama {
 function getOpenAIClient(): OpenAI {
   if (!openaiClient) {
     const config = loadConfig();
-    openaiClient = new OpenAI({ apiKey: config.embedding.apiKey });
+    const clientConfig: any = { apiKey: config.embedding.apiKey };
+    if (config.embedding.apiEndpoint) {
+      clientConfig.baseURL = config.embedding.apiEndpoint;
+    }
+    openaiClient = new OpenAI(clientConfig);
   }
   return openaiClient;
 }

@@ -13,6 +13,7 @@ MCP-SearXNG 完整配置参考。
 | | `EMBEDDING_PROVIDER` | 否 | `ollama` |
 | | `OLLAMA_HOST` | 否 | `http://localhost:11434` |
 | | `OPENAI_API_KEY` | 否 | - |
+| | `OPENAI_API_ENDPOINT` | 否 | - |
 | | `EMBEDDING_MODEL` | 否 | `nomic-embed-text` |
 | | `TOP_K` | 否 | `3` |
 | | `CHUNK_SIZE` | 否 | `1000` |
@@ -78,12 +79,14 @@ ENABLE_EMBEDDING=false  # 禁用（默认）
 
 ```bash
 EMBEDDING_PROVIDER=ollama   # 使用 Ollama（默认）
-EMBEDDING_PROVIDER=openai   # 使用 OpenAI
+EMBEDDING_PROVIDER=openai   # 使用自定义 OpenAI API
 ```
 
 **说明：**
 - `ollama`：使用本地 Ollama 服务，需要配置 `OLLAMA_HOST`
-- `openai`：使用 OpenAI API，需要配置 `OPENAI_API_KEY`
+- `openai`：使用自定义 OpenAI API，需要配置 `OPENAI_API_KEY` 和 `OPENAI_API_ENDPOINT`
+  - 不设置 `OPENAI_API_ENDPOINT` 时，默认使用 OpenAI 官方端点
+  - 设置 `OPENAI_API_ENDPOINT` 时，使用自定义端点（支持任何兼容 OpenAI API 格式的服务）
 
 ### OLLAMA_HOST
 
@@ -109,6 +112,26 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
 **说明：**
 - 用于访问 OpenAI Embedding API
 - 仅在使用 OpenAI 作为嵌入提供商时需要
+- 如果使用 Ollama，则不需要此配置
+
+### OPENAI_API_ENDPOINT
+
+**默认值：** - (未设置，使用 OpenAI 官方端点)
+
+自定义 OpenAI API 端点。仅在 `EMBEDDING_PROVIDER=openai` 时使用。
+
+```bash
+# OpenAI 官方端点（默认，可省略）
+OPENAI_API_ENDPOINT=https://api.openai.com/v1
+
+# 自定义端点（国内 API 提供商）
+OPENAI_API_ENDPOINT=https://api.your-provider.com/v1
+```
+
+**说明：**
+- 用于指定自定义的 OpenAI API 端点
+- 支持任何兼容 OpenAI API 格式的服务
+- 如果不设置，默认使用 OpenAI 官方端点
 - 如果使用 Ollama，则不需要此配置
 
 ### EMBEDDING_MODEL
@@ -407,7 +430,7 @@ CACHE_TTL=300
 MAX_KEYWORDS=5
 ```
 
-### OpenAI 版本（云端嵌入）
+### OpenAI 版本（自定义嵌入）
 
 ```bash
 # 基础
@@ -417,6 +440,7 @@ SEARXNG_URL=http://localhost:8080
 ENABLE_EMBEDDING=true
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+OPENAI_API_ENDPOINT=https://api.openai.com/v1
 EMBEDDING_MODEL=text-embedding-3-small
 
 # 缓存
@@ -425,6 +449,16 @@ CACHE_TTL=300
 
 # 搜索
 MAX_KEYWORDS=5
+```
+
+**使用国内 API 提供商：**
+```bash
+# 嵌入
+ENABLE_EMBEDDING=true
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+OPENAI_API_ENDPOINT=https://api.your-provider.com/v1
+EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ### Docker Compose

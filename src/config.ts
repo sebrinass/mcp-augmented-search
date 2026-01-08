@@ -3,6 +3,7 @@ export interface EmbeddingConfig {
   provider: string;
   host: string;
   apiKey?: string;
+  apiEndpoint?: string;
   model: string;
   topK: number;
   chunkSize: number;
@@ -75,6 +76,7 @@ export function loadConfig(): Config {
       provider: getEnv('EMBEDDING_PROVIDER', 'ollama') || 'ollama',
       host: getEnv('OLLAMA_HOST', 'http://localhost:11434') || 'http://localhost:11434',
       apiKey: getEnv('OPENAI_API_KEY'),
+      apiEndpoint: getEnv('OPENAI_API_ENDPOINT'),
       model: getEnv('EMBEDDING_MODEL', 'nomic-embed-text') || 'nomic-embed-text',
       topK: getEnvNumber('TOP_K', 3),
       chunkSize: getEnvNumber('CHUNK_SIZE', 1000),

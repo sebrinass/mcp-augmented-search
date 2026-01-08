@@ -3,6 +3,7 @@ export interface EmbeddingConfig {
     provider: string;
     host: string;
     apiKey?: string;
+    apiEndpoint?: string;
     model: string;
     topK: number;
     chunkSize: number;

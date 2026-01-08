@@ -13,6 +13,7 @@ Complete configuration reference for MCP-SearXNG.
 | | `EMBEDDING_PROVIDER` | No | `ollama` |
 | | `OLLAMA_HOST` | No | `http://localhost:11434` |
 | | `OPENAI_API_KEY` | No | - |
+| | `OPENAI_API_ENDPOINT` | No | - |
 | | `EMBEDDING_MODEL` | No | `nomic-embed-text` |
 | | `TOP_K` | No | `3` |
 | | `CHUNK_SIZE` | No | `1000` |
@@ -78,12 +79,14 @@ Embedding service provider. Supports `ollama` and `openai`.
 
 ```bash
 EMBEDDING_PROVIDER=ollama   # Use Ollama (default)
-EMBEDDING_PROVIDER=openai   # Use OpenAI
+EMBEDDING_PROVIDER=openai   # Use custom OpenAI API
 ```
 
 **Description:**
 - `ollama`: Use local Ollama service, requires `OLLAMA_HOST` configuration
-- `openai`: Use OpenAI API, requires `OPENAI_API_KEY` configuration
+- `openai`: Use custom OpenAI API, requires `OPENAI_API_KEY` and `OPENAI_API_ENDPOINT`
+  - If `OPENAI_API_ENDPOINT` is not set, defaults to OpenAI official endpoint
+  - If `OPENAI_API_ENDPOINT` is set, uses custom endpoint (supports any OpenAI-compatible API service)
 
 ### OLLAMA_HOST
 
@@ -109,6 +112,26 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
 **Description:**
 - Used to access OpenAI Embedding API
 - Only required when using OpenAI as embedding provider
+- Not needed if using Ollama
+
+### OPENAI_API_ENDPOINT
+
+**Default:** - (not set, uses OpenAI official endpoint)
+
+Custom OpenAI API endpoint. Only used when `EMBEDDING_PROVIDER=openai`.
+
+```bash
+# OpenAI official endpoint (default, can be omitted)
+OPENAI_API_ENDPOINT=https://api.openai.com/v1
+
+# Custom endpoint (domestic API providers)
+OPENAI_API_ENDPOINT=https://api.your-provider.com/v1
+```
+
+**Description:**
+- Used to specify custom OpenAI API endpoint
+- Supports any service compatible with OpenAI API format
+- If not set, defaults to OpenAI official endpoint
 - Not needed if using Ollama
 
 ### EMBEDDING_MODEL
@@ -407,7 +430,7 @@ CACHE_TTL=300
 MAX_KEYWORDS=5
 ```
 
-### OpenAI Version (Cloud Embedding)
+### OpenAI Version (Custom Embedding)
 
 ```bash
 # Basic
@@ -417,6 +440,7 @@ SEARXNG_URL=http://localhost:8080
 ENABLE_EMBEDDING=true
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+OPENAI_API_ENDPOINT=https://api.openai.com/v1
 EMBEDDING_MODEL=text-embedding-3-small
 
 # Cache
@@ -425,6 +449,16 @@ CACHE_TTL=300
 
 # Search
 MAX_KEYWORDS=5
+```
+
+**Using domestic API providers:**
+```bash
+# Embedding
+ENABLE_EMBEDDING=true
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+OPENAI_API_ENDPOINT=https://api.your-provider.com/v1
+EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ### Docker Compose
